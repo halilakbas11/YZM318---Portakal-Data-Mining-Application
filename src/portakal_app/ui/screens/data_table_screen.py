@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +16,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSplitter,
+    QStackedWidget,
     QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
@@ -25,7 +25,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from portakal_app.data.models import DatasetHandle
+from portakal_app.data.models import DatasetHandle, PreviewPage
+from portakal_app.data.services.preview_service import PreviewService
 
 
 TYPE_COLORS = {
@@ -36,7 +37,7 @@ TYPE_COLORS = {
 }
 
 ROW_CLASS_COLORS = ["#eef1f4", "#f3eee6", "#ece8f7", "#eef7eb", "#f8eded"]
-PROCESS_EVENTS_EVERY = 2000
+DEFAULT_PAGE_SIZE = 500
 
 
 @dataclass
@@ -271,11 +272,55 @@ class NumericBarDelegate(QStyledItemDelegate):
         painter.restore()
 
 
-class DataTableScreen(QWidget):
+class _LoadingWidget(QWidget):
+    """Centered loading indicator shown while data is being prepared."""
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._dataset_handle: Any = None
-        self._dataset_path: Path | None = None
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._label = QLabel("⏳ Veriler yükleniyor...")
+        self._label.setStyleSheet(
+            "font-size: 14pt; font-weight: 600; color: #8b7355; background: transparent;"
+        )
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._label)
+
+        self._detail = QLabel("Polars DataFrame hazırlanıyor, lütfen bekleyiniz.")
+        self._detail.setStyleSheet(
+            "font-size: 10pt; color: #a39580; background: transparent;"
+        )
+        self._detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._detail)
+
+
+class _EmptyWidget(QWidget):
+    """Centered placeholder shown when no dataset is loaded."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._label = QLabel("📂 Henüz veri yüklenmedi")
+        self._label.setStyleSheet(
+            "font-size: 14pt; font-weight: 600; color: #8b7355; background: transparent;"
+        )
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._label)
+
+        self._detail = QLabel("File widget'tan bir dosya seçerek başlayabilirsiniz.")
+        self._detail.setStyleSheet(
+            "font-size: 10pt; color: #a39580; background: transparent;"
+        )
+        self._detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._detail)
+
+
+class DataTableScreen(QWidget):
+    def __init__(self, parent: QWidget | None = None, preview_service: PreviewService | None = None) -> None:
+        super().__init__(parent)
+        self._preview_service = preview_service or PreviewService()
+        self._dataset_handle: DatasetHandle | None = None
         self._headers: list[str] = []
         self._rows: list[list[str]] = []
         self._columns: list[DataTableColumn] = []
@@ -288,9 +333,26 @@ class DataTableScreen(QWidget):
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(10)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        # --- stacked widget for empty / loading / data states ---
+        self._stack = QStackedWidget(self)
+        self._empty_widget = _EmptyWidget(self._stack)
+        self._loading_widget = _LoadingWidget(self._stack)
+        self._data_widget = QWidget(self._stack)
+
+        self._stack.addWidget(self._empty_widget)     # index 0
+        self._stack.addWidget(self._loading_widget)    # index 1
+        self._stack.addWidget(self._data_widget)       # index 2
+        self._stack.setCurrentIndex(0)
+        layout.addWidget(self._stack, 1)
+
+        # --- data widget inner layout ---
+        data_layout = QVBoxLayout(self._data_widget)
+        data_layout.setContentsMargins(0, 0, 0, 0)
+        data_layout.setSpacing(10)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal, self._data_widget)
         splitter.setChildrenCollapsible(False)
-        layout.addWidget(splitter, 1)
+        data_layout.addWidget(splitter, 1)
 
         self._sidebar = QWidget(self)
         self._sidebar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
@@ -384,7 +446,9 @@ class DataTableScreen(QWidget):
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([255, 820])
 
-        self._set_empty_state()
+    def set_preview_service(self, service: PreviewService) -> None:
+        """Allow injection of PreviewService after construction."""
+        self._preview_service = service
 
     def _build_panel(self, title: str) -> QFrame:
         frame = QFrame(self)
@@ -399,14 +463,128 @@ class DataTableScreen(QWidget):
         return frame
 
     def set_dataset(self, dataset_handle: Any) -> None:
-        self._dataset_handle = dataset_handle
+        """Accept a DatasetHandle (preferred) or a string path to load data."""
+        if dataset_handle is None:
+            self._dataset_handle = None
+            self._set_empty_state()
+            return
+
+        # Show loading state
+        self._stack.setCurrentIndex(1)
+        QApplication.processEvents()
+
         if isinstance(dataset_handle, DatasetHandle):
-            self._dataset_path = dataset_handle.source.path if dataset_handle.source.path.exists() else None
-        elif isinstance(dataset_handle, str) and Path(dataset_handle).exists():
-            self._dataset_path = Path(dataset_handle)
+            self._dataset_handle = dataset_handle
+        elif isinstance(dataset_handle, str):
+            # Fallback: try to create a DatasetHandle from path via FileImportService
+            self._dataset_handle = self._try_load_from_path(dataset_handle)
         else:
-            self._dataset_path = None
-        self._load_dataset()
+            self._dataset_handle = None
+
+        if self._dataset_handle is None:
+            self._set_empty_state()
+            return
+
+        self._load_from_handle()
+
+    def _try_load_from_path(self, path: str) -> DatasetHandle | None:
+        """Best-effort fallback to load a path into a DatasetHandle."""
+        try:
+            from portakal_app.data.services.file_import_service import FileImportService
+            return FileImportService().load(path)
+        except Exception:
+            return None
+
+    def _load_from_handle(self) -> None:
+        """Load all data from the DatasetHandle via PreviewService."""
+        dataset = self._dataset_handle
+        if dataset is None:
+            self._set_empty_state()
+            return
+
+        # Get column specs from the domain
+        col_specs = self._preview_service.get_column_specs(dataset)
+        self._columns = [
+            DataTableColumn(
+                name=spec["name"],
+                type_name=spec["type_name"],
+                role_name=spec["role_name"],
+                values_preview=spec["values_preview"],
+            )
+            for spec in col_specs
+        ]
+
+        # Determine headers
+        self._headers = [col.name for col in self._columns]
+
+        # Get numeric ranges
+        self._numeric_ranges = self._preview_service.get_numeric_ranges(dataset)
+
+        # Get total rows
+        self._total_rows = self._preview_service.get_total_rows(dataset)
+
+        # Get target column
+        self._target_column_index = self._find_target_index()
+
+        # Load all rows via PreviewService (paginated internally for large datasets)
+        self._rows = self._load_all_rows(dataset)
+
+        # Count missing values
+        self._missing_count = self._count_missing(self._rows)
+
+        # Set the model
+        self._model.set_dataset(
+            self._headers,
+            self._columns,
+            self._rows,
+            self._numeric_ranges,
+            self._target_column_index,
+        )
+
+        # Update UI
+        self._refresh_headers()
+        self._refresh_info()
+        self._toggle_numeric_bars(self._visualize_checkbox.isChecked())
+        self._refresh_row_colors()
+        self._table.resizeColumnsToContents()
+        self._table.horizontalHeader().setStretchLastSection(True)
+        self._restore_order_button.setEnabled(True)
+        self._update_selection_summary()
+
+        # Switch to data view
+        self._stack.setCurrentIndex(2)
+
+    def _load_all_rows(self, dataset: DatasetHandle) -> list[list[str]]:
+        """Load all rows page by page using PreviewService for responsiveness."""
+        total = self._preview_service.get_total_rows(dataset)
+        all_rows: list[list[str]] = []
+        offset = 0
+        page_size = DEFAULT_PAGE_SIZE
+
+        while offset < total:
+            page = self._preview_service.get_page(dataset, offset, page_size)
+            for row_tuple in page.rows:
+                all_rows.append(list(row_tuple))
+            offset += page_size
+            # Keep UI responsive during large loads
+            if offset < total:
+                QApplication.processEvents()
+
+        return all_rows
+
+    def _count_missing(self, rows: list[list[str]]) -> int:
+        count = 0
+        for row in rows:
+            for cell in row:
+                if not cell.strip():
+                    count += 1
+        return count
+
+    def _find_target_index(self) -> int | None:
+        for index, col in enumerate(self._columns):
+            if col.role_name == "target":
+                return index
+        return None
 
     def help_text(self) -> str:
         return (
@@ -474,122 +652,6 @@ class DataTableScreen(QWidget):
             "data_rows": all_rows,
         }
 
-    def _load_dataset(self) -> None:
-        if self._dataset_path is None:
-            self._set_empty_state()
-            return
-
-        suffix = self._dataset_path.suffix.lower()
-        if suffix not in {".csv", ".tsv", ".tab"}:
-            self._headers = []
-            self._rows = []
-            self._columns = []
-            self._numeric_ranges = {}
-            self._target_column_index = None
-            self._total_rows = 0
-            self._missing_count = 0
-            self._summary_label.setText(f"Data: {_describe_dataset(self._dataset_handle)} cannot be previewed yet")
-            self._selected_summary_label.setText("Data Subset: -")
-            self._info_label.setText(
-                "\n".join(
-                    [
-                        "Preview currently supports CSV, TSV and TAB files.",
-                        f"Loaded source: {self._dataset_path.name}",
-                    ]
-                )
-            )
-            self._model.clear()
-            self._restore_order_button.setEnabled(False)
-            return
-
-        delimiter = "\t" if suffix in {".tsv", ".tab"} else ","
-        self._total_rows = 0
-        self._missing_count = 0
-        rows: list[list[str]] = []
-
-        with self._dataset_path.open("r", encoding="utf-8-sig", newline="") as handle:
-            reader = csv.reader(handle, delimiter=delimiter)
-            self._headers = next(reader, [])
-            column_count = len(self._headers)
-            sample_values: list[list[str]] = [[] for _ in range(column_count)]
-            unique_values: list[set[str]] = [set() for _ in range(column_count)]
-            numeric_ranges: dict[int, tuple[float, float]] = {}
-
-            for row_index, row in enumerate(reader, start=1):
-                self._total_rows += 1
-                rows.append(row)
-
-                for index in range(column_count):
-                    value = row[index].strip() if index < len(row) else ""
-                    if not value:
-                        self._missing_count += 1
-                        continue
-                    if len(sample_values[index]) < 1000:
-                        sample_values[index].append(value)
-                    if len(unique_values[index]) < 24:
-                        unique_values[index].add(value)
-                    if self._is_float(value):
-                        numeric_value = float(value)
-                        current = numeric_ranges.get(index)
-                        if current is None:
-                            numeric_ranges[index] = (numeric_value, numeric_value)
-                        else:
-                            numeric_ranges[index] = (min(current[0], numeric_value), max(current[1], numeric_value))
-
-                if row_index % PROCESS_EVENTS_EVERY == 0:
-                    QApplication.processEvents()
-
-        self._rows = rows
-        self._target_column_index = self._infer_target_column_from_samples(sample_values, unique_values)
-        self._columns = self._build_columns_from_samples(sample_values, unique_values)
-        self._numeric_ranges = {index: value for index, value in numeric_ranges.items() if index < len(self._headers)}
-        self._model.set_dataset(self._headers, self._columns, self._rows, self._numeric_ranges, self._target_column_index)
-        self._refresh_headers()
-        self._refresh_info()
-        self._toggle_numeric_bars(self._visualize_checkbox.isChecked())
-        self._refresh_row_colors()
-        self._table.resizeColumnsToContents()
-        self._table.horizontalHeader().setStretchLastSection(True)
-        self._restore_order_button.setEnabled(True)
-        self._update_selection_summary()
-
-    def _build_columns_from_samples(self, sample_values: list[list[str]], unique_values: list[set[str]]) -> list[DataTableColumn]:
-        columns: list[DataTableColumn] = []
-        for index, header in enumerate(self._headers):
-            values = sample_values[index]
-            type_name = self._infer_type(values)
-            role_name = "target" if index == self._target_column_index else "feature"
-            preview = ", ".join(list(unique_values[index])[:3]) if type_name == "categorical" else ""
-            columns.append(DataTableColumn(header, type_name, role_name, preview))
-        return columns
-
-    def _infer_target_column_from_samples(self, sample_values: list[list[str]], unique_values: list[set[str]]) -> int | None:
-        if not self._headers:
-            return None
-        candidates: list[tuple[int, int]] = []
-        for index, values in enumerate(sample_values):
-            if not values:
-                continue
-            unique_count = len(unique_values[index])
-            if unique_count <= 12 and not all(self._is_float(value) for value in values):
-                candidates.append((index, unique_count))
-        if not candidates:
-            return None
-        return candidates[-1][0]
-
-    def _infer_type(self, values: list[str]) -> str:
-        cleaned = [value.strip() for value in values if value.strip()]
-        if not cleaned:
-            return "text"
-        if all(self._is_float(value) for value in cleaned):
-            return "numeric"
-        if all("-" in value or "/" in value or ":" in value for value in cleaned[:8]):
-            return "datetime"
-        unique_count = len(set(cleaned))
-        if unique_count <= max(12, len(cleaned) // 3):
-            return "categorical"
-        return "text"
-
     def _refresh_headers(self) -> None:
         self._model.set_show_labels(self._show_labels_checkbox.isChecked())
 
@@ -598,11 +660,9 @@ class DataTableScreen(QWidget):
         numeric_features = [column for column in feature_columns if column.type_name == "numeric"]
         target_values = set()
         if self._target_column_index is not None:
-            target_values = {
-                row[self._target_column_index]
-                for row in self._rows
-                if self._target_column_index < len(row) and row[self._target_column_index].strip()
-            }
+            for row in self._rows:
+                if self._target_column_index < len(row) and row[self._target_column_index].strip():
+                    target_values.add(row[self._target_column_index])
 
         self._info_label.setText(
             "\n".join(
@@ -693,6 +753,7 @@ class DataTableScreen(QWidget):
         self._info_label.setText("No dataset loaded.")
         self._model.clear()
         self._restore_order_button.setEnabled(False)
+        self._stack.setCurrentIndex(0)
 
     def _is_float(self, value: str) -> bool:
         try:

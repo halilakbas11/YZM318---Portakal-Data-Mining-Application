@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 from portakal_app.data.errors import PortakalDataError
 from portakal_app.data.models import DatasetHandle
 from portakal_app.data.services.file_import_service import FileImportService
+from portakal_app.data.services.preview_service import PreviewService
 from portakal_app.data.services.save_data_service import SaveDataService
 from portakal_app.models import AppState, DataInfoViewModel, MetricCardData, SuggestionItem, WidgetDefinition
 from portakal_app.ui.catalog import build_categories, build_widgets
@@ -163,6 +164,7 @@ class MainWindow(QMainWindow):
         self._saved_snapshot: dict[str, object] | None = None
         self._history_guard = False
         self._file_import_service = FileImportService()
+        self._preview_service = PreviewService()
         self._save_data_service = SaveDataService()
 
         self._build_layout()
@@ -378,6 +380,7 @@ class MainWindow(QMainWindow):
             if isinstance(screen, DataInfoScreen):
                 self._prime_data_info_screen(screen)
             if isinstance(screen, DataTableScreen):
+                screen.set_preview_service(self._preview_service)
                 screen.set_dataset(None)
             if isinstance(screen, SaveDataScreen):
                 screen.set_save_data_service(self._save_data_service)
