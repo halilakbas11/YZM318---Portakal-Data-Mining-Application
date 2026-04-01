@@ -14,7 +14,7 @@ from pathlib import Path
 import polars as pl
 
 from portakal_app.data.errors import DatasetLoadError, UnsupportedFormatError
-from portakal_app.data.models import CSVImportOptions, DatasetHandle, SourceInfo, build_data_domain
+from portakal_app.data.models import CSVImportOptions, DatasetHandle, SourceInfo, build_data_domain, ColumnSchema, DataDomain
 
 
 class FileImportService:
@@ -27,6 +27,12 @@ class FileImportService:
             raise DatasetLoadError(f"Dataset file could not be found: {source_path}")
 
         file_format = self._detect_format(source_path)
+        if file_format in {"csv", "tsv", "tab"}:
+            options = None
+            if file_format in {"tsv", "tab"}:
+                options = CSVImportOptions(delimiter="\t")
+            return self.load_delimited_text(path, options=options)
+
         cache_path = self._cache_path_for(source_path)
 
         try:
@@ -68,6 +74,11 @@ class FileImportService:
         cache_path = self._cache_path_for(source_path)
         try:
             source_text = source_path.read_text(encoding=options.encoding)
+            orange_types = None
+            orange_flags = None
+            if options.has_header:
+                source_text, orange_types, orange_flags = self._extract_orange_headers(source_text, options.delimiter)
+
             dataframe = pl.read_csv(
                 io.StringIO(source_text),
                 separator=options.delimiter,
@@ -78,6 +89,15 @@ class FileImportService:
                 dataframe = dataframe.rename(
                     {column: f"Column {index}" for index, column in enumerate(dataframe.columns, start=1)}
                 )
+            
+            domain_override_cols = []
+            if orange_flags:
+                for i, flag in enumerate(orange_flags):
+                    if i < len(dataframe.columns) and ("ignore" in flag.strip().lower() or "i" == flag.strip().lower()):
+                        domain_override_cols.append(dataframe.columns[i])
+            if domain_override_cols:
+                dataframe = dataframe.drop(domain_override_cols)
+
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             dataframe.write_parquet(cache_path)
         except Exception as exc:
@@ -93,6 +113,9 @@ class FileImportService:
             cache_path=cache_path,
         )
         domain = build_data_domain(dataframe)
+        if orange_types or orange_flags:
+            domain = self._apply_orange_overrides(domain, orange_types or [], orange_flags or [])
+            
         dataset_id = cache_path.stem
         return DatasetHandle(
             dataset_id=dataset_id,
@@ -286,3 +309,86 @@ class FileImportService:
                 best_score = score
                 best_delimiter = delimiter
         return best_delimiter
+
+    def _extract_orange_headers(self, source_text: str, delimiter: str) -> tuple[str, list[str] | None, list[str] | None]:
+        import csv
+        import io
+        import re
+
+        re_types = re.compile(r"^\s*(c|d|s|time|continuous|discrete|string|datetime|)\s*$", re.IGNORECASE)
+        re_flags = re.compile(r"^\s*(class|meta|weight|ignore|target|m|w|i|c|)\s*$", re.IGNORECASE)
+
+        def test_flags(items):
+            for item in items:
+                for token in item.split():
+                    if "=" in token: continue
+                    if not re_flags.match(token): return False
+            return True
+
+        stream = io.StringIO(source_text)
+        reader = csv.reader(stream, delimiter=delimiter)
+        try:
+            names = next(reader)
+            types = next(reader)
+            flags = next(reader)
+            if all(re_types.match(t) for t in types) and test_flags(flags):
+                out_stream = io.StringIO()
+                writer = csv.writer(out_stream, delimiter=delimiter)
+                writer.writerow(names)
+                for row in reader:
+                    writer.writerow(row)
+                return out_stream.getvalue(), types, flags
+        except StopIteration:
+            pass
+
+        return source_text, None, None
+
+    def _apply_orange_overrides(self, domain: DataDomain, o_types: list[str], o_flags: list[str]) -> DataDomain:
+        new_columns = []
+        col_idx = 0
+
+        for i in range(max(len(o_types), len(o_flags))):
+            f_str = o_flags[i].strip().lower() if i < len(o_flags) else ""
+            if "ignore" in f_str or "i" == f_str:
+                continue
+
+            if col_idx < len(domain.columns):
+                col = domain.columns[col_idx]
+                t_str = o_types[i].strip().lower() if i < len(o_types) else ""
+
+                logical_type = col.logical_type
+                if t_str in {"c", "continuous", "numeric"}:
+                    logical_type = "numeric"
+                elif t_str in {"d", "discrete"}:
+                    logical_type = "categorical"
+                elif t_str in {"s", "string", "text"}:
+                    logical_type = "text"
+                elif t_str in {"time", "datetime"}:
+                    logical_type = "datetime"
+
+                role = "feature"
+                flag_first = f_str.split(" ")[0] if f_str else ""
+                if "class" in f_str or "target" in f_str or flag_first == "c":
+                    role = "target"
+                elif "meta" in f_str or flag_first == "m":
+                    role = "meta"
+
+                new_columns.append(
+                    ColumnSchema(
+                        name=col.name,
+                        dtype_repr=col.dtype_repr,
+                        logical_type=logical_type,
+                        role=role,
+                        nullable=col.nullable,
+                        null_count=col.null_count,
+                        unique_count_hint=col.unique_count_hint,
+                        sample_values=col.sample_values,
+                    )
+                )
+                col_idx += 1
+
+        while col_idx < len(domain.columns):
+            new_columns.append(domain.columns[col_idx])
+            col_idx += 1
+
+        return DataDomain(columns=tuple(new_columns))

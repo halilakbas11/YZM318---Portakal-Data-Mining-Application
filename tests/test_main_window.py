@@ -674,7 +674,7 @@ def test_column_statistics_screen_filters_columns_and_shows_warning_badges(app, 
 def test_rank_screen_orders_signal_feature_first(app, tmp_path):
     screen = RankScreen()
     csv_path = tmp_path / "rank.csv"
-    csv_path.write_text("signal,noise,target\n0,5,A\n0,1,A\n1,3,B\n1,4,B\n", encoding="utf-8")
+    csv_path.write_text("signal,noise,target\n0.1,5,A\n0.2,1,A\n0.9,3,B\n0.8,4,B\n", encoding="utf-8")
     screen.set_dataset(str(csv_path))
 
     assert screen._rank_table.rowCount() >= 2
@@ -687,7 +687,7 @@ def test_rank_screen_orders_signal_feature_first(app, tmp_path):
 def test_rank_screen_supports_target_override_filter_and_top_n(app, tmp_path):
     screen = RankScreen()
     csv_path = tmp_path / "rank-controls.csv"
-    csv_path.write_text("signal,noise,city,target\n0,5,A,A\n0,1,A,A\n1,3,B,B\n1,4,B,B\n", encoding="utf-8")
+    csv_path.write_text("signal,noise,city,target\n0.1,5,A,A\n0.2,1,A,A\n0.9,3,B,B\n0.8,4,B,B\n", encoding="utf-8")
     screen.set_dataset(str(csv_path))
     screen._feature_filter_combo.setCurrentText("Numeric only")
     screen._top_n_spin.setValue(1)
@@ -1184,7 +1184,7 @@ def test_language_switch_updates_shell_catalog_and_node_labels(app):
         button_texts = [button.text() for button in window._catalog.findChildren(WidgetCatalogButton)]
         assert window._catalog._title.text() == "Dönüştür"
         assert any(text.startswith("Sütun Seç") for text in button_texts)
-        assert any(text.startswith("Normalleştir") for text in button_texts)
+        assert any(text.startswith("Preprocess") for text in button_texts)
 
         i18n.set_language("en")
         assert window._workspace._title_label.text() == "Workflow"
@@ -1336,11 +1336,15 @@ def test_widget_cards_have_icons(app):
     assert all(not card.icon().isNull() for card in cards)
 
 
-def test_catalog_panel_has_no_scroll_area(app):
+def test_catalog_panel_scroll_area_is_borderless_and_transparent(app):
     window = MainWindow()
     catalog = window.findChild(WidgetCatalogPanel)
     assert catalog is not None
-    assert not catalog.findChildren(QScrollArea)
+    scroll_areas = catalog.findChildren(QScrollArea)
+    assert len(scroll_areas) == 1
+    scroll = scroll_areas[0]
+    assert scroll.widgetResizable()
+    assert scroll.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
 
 
 def test_sidebar_scrollbars_are_hidden(app):

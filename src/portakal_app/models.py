@@ -33,6 +33,8 @@ LLM_PROVIDER_ENV_VARS = {
 }
 WORKFLOW_PORT_COMPATIBILITY_OVERRIDES = {
     ("Scores", "Data"): frozenset({"data-table", "save-data"}),
+    ("Data", "Extra Data"): frozenset({"merge-data"}),
+    ("Data", "Template Data"): frozenset({"apply-domain"}),
 }
 
 
@@ -109,6 +111,9 @@ class WidgetDefinition:
     icon_name: str = "file"
     input_ports: tuple["PortDefinition", ...] = ()
     output_ports: tuple["PortDefinition", ...] = ()
+    output_channels: tuple[str, ...] = ()
+    input_channels: tuple[str, ...] = ()
+    multi_input_channels: tuple[str, ...] = ()  # channels that accept multiple connections
 
 
 @dataclass(frozen=True)

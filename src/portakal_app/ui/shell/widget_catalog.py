@@ -4,7 +4,7 @@ from collections.abc import Iterable
 
 from PySide6.QtCore import QMimeData, QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QDrag
-from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
 from portakal_app.models import WidgetDefinition
 from portakal_app.ui.icons import get_widget_icon
@@ -26,8 +26,8 @@ class WidgetCatalogButton(QPushButton):
         self._activate_timer.timeout.connect(lambda: self.activateRequested.emit(self.widget_id))
         self.setProperty("card", True)
         self.setProperty("comingSoon", not widget_definition.enabled)
-        self.setMinimumHeight(72)
-        self.setMaximumHeight(76)
+        self.setMinimumHeight(62)
+        self.setMaximumHeight(66)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         icon = get_widget_icon(widget_definition.icon_name)
@@ -111,8 +111,13 @@ class WidgetCatalogPanel(QFrame):
         self._search.textChanged.connect(self._render_grid)
         outer_layout.addWidget(self._search)
 
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         self._content = QWidget()
-        outer_layout.addWidget(self._content, 1)
+        self._scroll.setWidget(self._content)
+        outer_layout.addWidget(self._scroll, 1)
         self._grid = QGridLayout(self._content)
         self._grid.setContentsMargins(0, 0, 0, 0)
         self._grid.setHorizontalSpacing(6)

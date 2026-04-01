@@ -183,7 +183,7 @@ def test_active_ui_surfaces_do_not_leave_known_english_labels_in_turkish_mode(ap
 def test_text_sources_do_not_contain_common_mojibake_sequences():
     forbidden_sequences = ("\u00C3", "\u00C4", "\u00C5", "\uFFFD")
     allowed_suffixes = {".py", ".md", ".toml"}
-    ignored_parts = {".git", ".venv", "__pycache__", "portakal_app.egg-info", ".vscode"}
+    ignored_parts = {".git", ".venv", "venv", "__pycache__", "portakal_app.egg-info", ".vscode"}
     offenders: list[str] = []
 
     for path in Path(".").rglob("*"):

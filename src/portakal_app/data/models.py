@@ -211,21 +211,41 @@ class PaintDataSnapshot:
     label_source_name: str | None = None
 
 
-def build_data_domain(dataframe: pl.DataFrame) -> DataDomain:
+def build_data_domain(
+    dataframe: pl.DataFrame,
+    *,
+    source_domain: DataDomain | None = None,
+) -> DataDomain:
+    """Infer domain from *dataframe*.
+
+    Parameters
+    ----------
+    source_domain
+        When given, column roles (feature / target / meta) are preserved
+        for every column whose name matches a column in the source domain.
+        This keeps the target stable through downstream transforms.
+    """
+    # Build a quick lookup for roles coming from an earlier pipeline step.
+    _role_lookup: dict[str, str] = {}
+    if source_domain is not None:
+        for col in source_domain.columns:
+            _role_lookup[col.name] = col.role
+
     columns: list[ColumnSchema] = []
     for name in dataframe.columns:
         series = dataframe.get_column(name)
         dtype_repr = str(series.dtype)
-        logical_type = _infer_logical_type(series)
         null_count = int(series.null_count())
         unique_count = _safe_unique_count(series)
+        logical_type = _infer_logical_type(series, unique_count)
         sample_values = _sample_values(series)
+        role = _role_lookup.get(name, "feature")
         columns.append(
             ColumnSchema(
                 name=name,
                 dtype_repr=dtype_repr,
                 logical_type=logical_type,
-                role="feature",
+                role=role,
                 nullable=null_count > 0,
                 null_count=null_count,
                 unique_count_hint=unique_count,
@@ -233,34 +253,75 @@ def build_data_domain(dataframe: pl.DataFrame) -> DataDomain:
             )
         )
 
-    target_index = _infer_target_index(columns)
-    if target_index is not None:
-        target_column = columns[target_index]
-        columns[target_index] = ColumnSchema(
-            name=target_column.name,
-            dtype_repr=target_column.dtype_repr,
-            logical_type=target_column.logical_type,
-            role="target",
-            nullable=target_column.nullable,
-            null_count=target_column.null_count,
-            unique_count_hint=target_column.unique_count_hint,
-            sample_values=target_column.sample_values,
-        )
+    # Auto-detect target only when no source domain was given (initial load).
+    if source_domain is None:
+        target_index = _infer_target_index(columns)
+        if target_index is not None:
+            target_column = columns[target_index]
+            columns[target_index] = ColumnSchema(
+                name=target_column.name,
+                dtype_repr=target_column.dtype_repr,
+                logical_type=target_column.logical_type,
+                role="target",
+                nullable=target_column.nullable,
+                null_count=target_column.null_count,
+                unique_count_hint=target_column.unique_count_hint,
+                sample_values=target_column.sample_values,
+            )
     return DataDomain(columns=tuple(columns))
 
 
 def _infer_target_index(columns: list[ColumnSchema]) -> int | None:
+    """Return the index of the best target candidate.
+
+    Orange3 only assigns targets from explicit header flags. For Portakal's
+    convenience auto-detection we use the last *categorical* column (covers
+    both string-categorical and low-cardinality-numeric-categorical columns).
+    """
     candidates = [
         index
         for index, column in enumerate(columns)
-        if column.name.strip() and column.logical_type != "numeric" and 0 < column.unique_count_hint <= LOW_CARDINALITY_LIMIT
+        if column.name.strip()
+        and column.logical_type == "categorical"
+        and 0 < column.unique_count_hint <= LOW_CARDINALITY_LIMIT
     ]
     if not candidates:
         return None
     return candidates[-1]
 
 
-def _infer_logical_type(series: pl.Series) -> str:
+# ── Orange3-compatible numeric discreteness check ─────────────────────
+# Orange3 treats numeric columns with at most 2 distinct non-null values
+# as discrete when those values are a subset of {0, 1} or {1, 2}.
+_DISCRETE_NUMERIC_MAX_UNIQUE = 3  # 2 real values + NaN
+
+
+def _is_discrete_numeric(series: pl.Series, unique_count: int) -> bool:
+    """Return True if *series* should be treated as categorical (Orange3 rules).
+
+    Matches Orange3's ``is_discrete_values`` for numeric data:
+    * at most 3 unique values including nulls
+    * non-null values must be a subset of {0, 1} or {1, 2}
+    """
+    if unique_count > _DISCRETE_NUMERIC_MAX_UNIQUE:
+        return False
+    try:
+        non_null = series.drop_nulls()
+        if non_null.len() == 0:
+            return False
+        unique_vals = set(non_null.unique().to_list())
+    except Exception:
+        return False
+    float_vals = set()
+    for v in unique_vals:
+        try:
+            float_vals.add(float(v))
+        except (ValueError, TypeError):
+            return False
+    return (not (float_vals - {0.0, 1.0}) or not (float_vals - {1.0, 2.0}))
+
+
+def _infer_logical_type(series: pl.Series, unique_count: int) -> str:
     dtype_name = str(series.dtype).lower()
     if "bool" in dtype_name:
         return "boolean"
@@ -273,28 +334,55 @@ def _infer_logical_type(series: pl.Series) -> str:
     if "duration" in dtype_name:
         return "duration"
     if any(token in dtype_name for token in ("int", "float", "decimal")):
+        # Orange3: numeric columns with ≤2 distinct values in {0,1} or {1,2}
+        # are treated as discrete/categorical.
+        if _is_discrete_numeric(series, unique_count):
+            return "categorical"
         return "numeric"
     if dtype_name in {"categorical", "enum"}:
         return "categorical"
     if dtype_name in {"string", "str", "utf8"}:
-        return _infer_string_like_type(series)
+        return _infer_string_like_type(series, unique_count)
     return "unknown"
 
 
-def _infer_string_like_type(series: pl.Series) -> str:
-    values = [str(value).strip() for value in series.drop_nulls().head(128).to_list() if str(value).strip()]
+def _infer_string_like_type(series: pl.Series, unique_count: int) -> str:
+    """Infer type for a string column.
+
+    Uses Orange3-compatible thresholds:
+    * datetime — all sampled values parse as ISO-like timestamps
+    * categorical — unique count ≤ min(N^0.7, 100)
+    * text — everything else
+    """
+    non_null = series.drop_nulls()
+    n_rows = non_null.len()
+    values = [str(v).strip() for v in non_null.head(128).to_list() if str(v).strip()]
     if not values:
         return "text"
-    if all(_looks_like_datetime(value) for value in values[:8]):
+    if all(_looks_like_datetime(v) for v in values[:8]):
         return "datetime"
-    unique_count = len({value for value in values})
-    if unique_count <= max(LOW_CARDINALITY_LIMIT, len(values) // 3):
+    # Orange3 adaptive threshold: N^0.7, capped at 100
+    max_discrete = min(int(round(max(n_rows, 1) ** 0.7)), 100)
+    max_discrete = max(max_discrete, LOW_CARDINALITY_LIMIT)
+    if unique_count <= max_discrete:
         return "categorical"
     return "text"
 
 
 def _looks_like_datetime(value: str) -> bool:
-    return any(token in value for token in ("-", "/", ":"))
+    """Return True if *value* looks like an ISO-style datetime.
+
+    Orange3 actually parses with ``TimeVariable.parse_exact_iso``. Here we
+    use a lightweight regex that covers ``YYYY-MM-DD``, ``YYYY/MM/DD``,
+    ``YYYY-MM-DD HH:MM``, and similar patterns while rejecting plain words
+    or numbers that happen to contain ``-`` or ``/``.
+    """
+    import re
+    return bool(re.match(
+        r"^\d{4}[\-/]\d{1,2}[\-/]\d{1,2}"   # date part: YYYY-MM-DD
+        r"([T ]\d{1,2}:\d{2}(:\d{2})?)?$",   # optional time part
+        value,
+    ))
 
 
 def _safe_unique_count(series: pl.Series) -> int:

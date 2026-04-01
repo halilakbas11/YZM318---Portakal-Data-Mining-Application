@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication
 
 
 _CHECK_ICON_PATH = (Path(__file__).resolve().parent / "assets" / "checkbox-check.svg").as_posix()
+_RADIO_ICON_PATH = (Path(__file__).resolve().parent / "assets" / "radio-check.svg").as_posix()
 
 APP_STYLESHEET = """
 QWidget {
@@ -243,6 +244,17 @@ QComboBox {
     border: 1px solid #d1cabf;
     border-radius: 8px;
     padding: 6px 10px;
+    color: #2b2b2b;
+}
+QComboBox QAbstractItemView {
+    background: white;
+    color: #2b2b2b;
+    border: 1px solid #d1cabf;
+    selection-background-color: #e8e1d1;
+    selection-color: #2b2b2b;
+}
+QComboBox::drop-down {
+    border: none;
 }
 QCheckBox {
     spacing: 8px;
@@ -265,6 +277,46 @@ QCheckBox::indicator:checked {
 }
 QCheckBox::indicator:unchecked {
     background: #fffdf9;
+}
+QCheckBox:disabled {
+    color: #b0a99e;
+}
+QCheckBox::indicator:disabled {
+    border-color: #c8c0b4;
+    background: #eae7e1;
+}
+QCheckBox::indicator:disabled:checked {
+    border-color: #c8c0b4;
+    background: #eae7e1;
+}
+QRadioButton {
+    spacing: 8px;
+}
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #2f2417;
+    border-radius: 8px;
+    background: #fffdf9;
+}
+QRadioButton::indicator:hover {
+    background: #f8ecd7;
+    border-color: #cf9440;
+}
+QRadioButton::indicator:checked {
+    background: #fffdf9;
+    border-color: #2f2417;
+    image: url("__RADIO_ICON__");
+}
+QRadioButton::indicator:unchecked {
+    background: #fffdf9;
+}
+QRadioButton:disabled {
+    color: #b0a99e;
+}
+QRadioButton::indicator:disabled {
+    border-color: #c8c0b4;
+    background: #eae7e1;
 }
 QPushButton#fileSourceActionButton {
     background-color: #f5ead5;
@@ -296,7 +348,7 @@ QToolButton#widgetPopupToolButton:hover {
 QLabel#fileTypeBadge {
     min-width: 18px;
 }
-""".replace("__CHECK_ICON__", _CHECK_ICON_PATH)
+""".replace("__CHECK_ICON__", _CHECK_ICON_PATH).replace("__RADIO_ICON__", _RADIO_ICON_PATH)
 
 
 def apply_theme(app: QApplication) -> None:

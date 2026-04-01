@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from portakal_app.data.models import DatasetHandle
 from portakal_app.data.services.color_settings_service import ColorSettingsService
 from portakal_app.data.services.data_info_service import DataInfoService
 from portakal_app.data.services.dataset_catalog_service import DatasetCatalogService
@@ -74,6 +75,7 @@ class NodeRuntime:
     screen: QWidget
     input_payloads: dict[str, WorkflowPayload | None] = field(default_factory=dict)
     output_payload: WorkflowPayload | None = None
+    output_payloads: dict[str, WorkflowPayload | None] = field(default_factory=dict)
 
 
 class WorkflowInfoDialog(QDialog):
@@ -556,7 +558,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._sidebar)
 
         self._catalog = WidgetCatalogPanel()
-        self._catalog.setFixedWidth(320)
+        self._catalog.setFixedWidth(380)
         self._catalog.widgetSelected.connect(self._spawn_widget_from_catalog)
         layout.addWidget(self._catalog)
 
@@ -791,14 +793,17 @@ class MainWindow(QMainWindow):
             self._state_store.update(status_message="Workflow cycle detected.")
             return
 
-        incoming_edges: dict[tuple[str, str], tuple[str, str]] = {}
+        incoming_edges: dict[tuple[str, str], list[tuple[str, str, str, str]]] = {}
         for edge in workflow.get("edges", []):
             if not isinstance(edge, dict):
                 continue
-            incoming_edges[(str(edge.get("target_node_id") or ""), str(edge.get("target_port_id") or ""))] = (
+            key = (str(edge.get("target_node_id") or ""), str(edge.get("target_port_id") or ""))
+            incoming_edges.setdefault(key, []).append((
                 str(edge.get("source_node_id") or ""),
                 str(edge.get("source_port_id") or ""),
-            )
+                str(edge.get("channel") or ""),
+                str(edge.get("input_channel") or ""),
+            ))
 
         self._runtime_guard = True
         try:
@@ -809,35 +814,104 @@ class MainWindow(QMainWindow):
                 definition = self._widget_index[runtime.widget_id]
                 previous_inputs = dict(runtime.input_payloads)
                 resolved_inputs: dict[str, WorkflowPayload | None] = {}
+                resolved_labeled: list[tuple[str, WorkflowPayload]] = []
                 for port in definition.input_ports:
-                    source_edge = incoming_edges.get((node_id, port.id))
-                    if source_edge is None:
+                    edge_list = incoming_edges.get((node_id, port.id))
+                    if not edge_list:
                         resolved_inputs[port.id] = None
                         continue
-                    source_runtime = self._node_runtimes.get(source_edge[0])
-                    resolved_inputs[port.id] = source_runtime.output_payload if source_runtime is not None else None
+                    for source_edge in edge_list:
+                        source_runtime = self._node_runtimes.get(source_edge[0])
+                        edge_channel = source_edge[2]
+                        edge_input_channel = source_edge[3]
+                        payload: WorkflowPayload | None = None
+                        if source_runtime is not None and edge_channel and edge_channel in source_runtime.output_payloads:
+                            payload = source_runtime.output_payloads[edge_channel]
+                        elif source_runtime is not None:
+                            payload = source_runtime.output_payload
+                        if payload is not None:
+                            label = edge_input_channel if edge_input_channel else port.label
+                            resolved_labeled.append((label, payload))
+                    if edge_list:
+                        first_edge = edge_list[0]
+                        sr = self._node_runtimes.get(first_edge[0])
+                        ec = first_edge[2]
+                        if sr is not None and ec and ec in sr.output_payloads:
+                            resolved_inputs[port.id] = sr.output_payloads[ec]
+                        elif sr is not None:
+                            resolved_inputs[port.id] = sr.output_payload
+                        else:
+                            resolved_inputs[port.id] = None
                 runtime.input_payloads = resolved_inputs
 
                 input_handler = getattr(runtime.screen, "set_input_payload", None)
                 if callable(input_handler) and definition.input_ports:
-                    primary_port_id = definition.input_ports[0].id
-                    previous_payload = previous_inputs.get(primary_port_id)
-                    next_payload = resolved_inputs.get(primary_port_id)
-                    previous_dataset = previous_payload.dataset if isinstance(previous_payload, WorkflowPayload) else None
-                    next_dataset = next_payload.dataset if isinstance(next_payload, WorkflowPayload) else None
-                    payload_changed = previous_payload != next_payload
-                    dataset_instance_changed = previous_dataset is not next_dataset
-                    if payload_changed or dataset_instance_changed:
-                        input_handler(next_payload)
+                    # Check if any input actually changed (by identity, not equality)
+                    any_changed = False
+                    for port in definition.input_ports:
+                        prev = previous_inputs.get(port.id)
+                        nxt = resolved_inputs.get(port.id)
+                        if prev is not nxt:
+                            any_changed = True
+                            break
+                    # Also check labeled inputs for input_channels widgets
+                    prev_labeled = getattr(runtime, "_prev_labeled", None)
+                    if prev_labeled is None or len(resolved_labeled) != len(prev_labeled):
+                        any_changed = True
+                    elif resolved_labeled:
+                        for (l1, p1), (l2, p2) in zip(resolved_labeled, prev_labeled):
+                            if l1 != l2 or p1 is not p2:
+                                any_changed = True
+                                break
+                    if any_changed:
+                        runtime._prev_labeled = list(resolved_labeled)  # type: ignore[attr-defined]
+                        input_handler(None)
+                        if resolved_labeled:
+                            for label, payload in resolved_labeled:
+                                input_handler(WorkflowPayload(label, payload.dataset))
+                        else:
+                            for port in definition.input_ports:
+                                nxt = resolved_inputs.get(port.id)
+                                if nxt is not None:
+                                    input_handler(WorkflowPayload(port.label, nxt.dataset))
 
                 output_dataset = None
-                output_provider = getattr(runtime.screen, "current_output_dataset", None)
-                if callable(output_provider):
-                    output_dataset = output_provider()
-                if definition.output_ports and output_dataset is not None:
-                    runtime.output_payload = WorkflowPayload(definition.output_ports[0].label, output_dataset)
+                multi_provider = getattr(runtime.screen, "current_output_datasets", None)
+                multi_outputs: dict[str, DatasetHandle | None] | None = None
+                if callable(multi_provider):
+                    multi_outputs = multi_provider()
+
+                if multi_outputs is not None and definition.output_channels:
+                    old_payloads = dict(runtime.output_payloads)
+                    runtime.output_payloads = {}
+                    first_payload = None
+                    for channel_name, ds in multi_outputs.items():
+                        if ds is not None:
+                            old_p = old_payloads.get(channel_name)
+                            if old_p is not None and old_p.dataset is ds:
+                                payload = old_p
+                            else:
+                                payload = WorkflowPayload(channel_name, ds)
+                            runtime.output_payloads[channel_name] = payload
+                            if first_payload is None:
+                                first_payload = payload
+                        else:
+                            runtime.output_payloads[channel_name] = None
+                    runtime.output_payload = first_payload
                 else:
-                    runtime.output_payload = None
+                    output_provider = getattr(runtime.screen, "current_output_dataset", None)
+                    if callable(output_provider):
+                        output_dataset = output_provider()
+                    if definition.output_ports and output_dataset is not None:
+                        old_payload = runtime.output_payload
+                        if old_payload is not None and old_payload.dataset is output_dataset:
+                            pass  # Same dataset object, keep existing payload
+                        else:
+                            runtime.output_payload = WorkflowPayload(definition.output_ports[0].label, output_dataset)
+                        runtime.output_payloads = {}
+                    else:
+                        runtime.output_payload = None
+                        runtime.output_payloads = {}
         finally:
             self._runtime_guard = False
         self._update_derived_dataset_state(ordered)
@@ -949,7 +1023,9 @@ class MainWindow(QMainWindow):
             return None
         try:
             payload = json.loads(text)
-        except json.JSONDecodeError:
+            if not isinstance(payload, dict):
+                return None
+        except (json.JSONDecodeError, TypeError):
             return None
         if payload.get("kind") != "portakal-workflow-selection":
             return None

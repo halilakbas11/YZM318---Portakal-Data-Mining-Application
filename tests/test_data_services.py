@@ -166,6 +166,15 @@ def test_file_import_service_load_from_url_falls_back_to_venv_kaggle_cli(monkeyp
     expected_cli = str(Path(sys.executable).with_name("kaggle.exe"))
     monkeypatch.setattr("portakal_app.data.services.file_import_service.which", lambda _name: None)
 
+    _orig_exists = Path.exists
+
+    def _fake_exists(self):
+        if self == Path(sys.executable).with_name("kaggle.exe"):
+            return True
+        return _orig_exists(self)
+
+    monkeypatch.setattr(Path, "exists", _fake_exists)
+
     def fake_run(command, *, capture_output, text, check, env=None):
         commands.append(command)
         target_index = command.index("-p") + 1
@@ -387,7 +396,7 @@ def test_feature_ranking_service_supports_top_n_filter_and_heuristic(tmp_path):
     source_path = tmp_path / "rank.csv"
     pl.DataFrame(
         {
-            "signal": [0, 0, 1, 1],
+            "signal": [0.1, 0.2, 0.9, 0.8],
             "noise": [5, 1, 3, 4],
             "city": ["A", "A", "B", "B"],
             "target": ["A", "A", "B", "B"],
