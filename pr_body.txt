@@ -1,0 +1,5 @@
+- Remove constant features: string/categorical tip tespiti düzeltildi
+- Remove unused feature values: reduce algoritması eklendi
+- Sort categorical feature values: gerçek encode seviyesi sıralama eklendi
+- Send Automatically: kendi stateChanged sinyali bağlandı
+- sorted/reduced sayaçları gerçek işlem sonucuna göre güncellendi
