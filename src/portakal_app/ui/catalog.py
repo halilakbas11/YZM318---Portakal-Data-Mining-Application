@@ -41,6 +41,14 @@ from portakal_app.ui.screens.python_script_screen import PythonScriptScreen
 from portakal_app.ui.screens.select_columns_screen import SelectColumnsScreen
 from portakal_app.ui.screens.select_rows_screen import SelectRowsScreen
 
+from portakal_app.ui.screens.bar_plot_screen import BarPlotScreen
+from portakal_app.ui.screens.sieve_diagram_screen import SieveDiagramScreen
+from portakal_app.ui.screens.mosaic_display_screen import MosaicDisplayScreen
+from portakal_app.ui.screens.freeviz_screen import FreeVizScreen
+from portakal_app.ui.screens.linear_projection_screen import LinearProjectionScreen
+from portakal_app.ui.screens.radviz_screen import RadvizScreen
+from portakal_app.ui.screens.heat_map_screen import HeatMapScreen
+
 
 def _placeholder_factory(title: str, description: str):
     def factory() -> PlaceholderScreen:
@@ -473,6 +481,83 @@ def build_widgets() -> list[WidgetDefinition]:
             _placeholder_factory("Scatter Plot", "Visualization widgets will be integrated by a later group."),
             i18n.t("Explore points visually."),
             "scatter",
+            _inputs("Data"),
+            (),
+        ),
+        WidgetDefinition(
+            "bar-plot",
+            "visualize",
+            i18n.t("Bar Plot"),
+            True,
+            BarPlotScreen,
+            i18n.t("Frequency bars for categorical or binned numeric columns."),
+            "barplot",
+            _inputs("Data"),
+            (),
+        ),
+        WidgetDefinition(
+            "sieve-diagram",
+            "visualize",
+            i18n.t("Sieve Diagram"),
+            True,
+            SieveDiagramScreen,
+            i18n.t("Association between two categorical variables."),
+            "sieve",
+            _inputs("Data"),
+            (),
+        ),
+        WidgetDefinition(
+            "mosaic-display",
+            "visualize",
+            i18n.t("Mosaic Display"),
+            True,
+            MosaicDisplayScreen,
+            i18n.t("Proportional mosaic plot for two categorical variables."),
+            "mosaic",
+            _inputs("Data"),
+            (),
+        ),
+        WidgetDefinition(
+            "freeviz",
+            "visualize",
+            i18n.t("FreeViz"),
+            True,
+            FreeVizScreen,
+            i18n.t("Force-directed linear projection onto 2D."),
+            "freeviz",
+            _inputs("Data"),
+            (),
+        ),
+        WidgetDefinition(
+            "linear-projection",
+            "visualize",
+            i18n.t("Linear Projection"),
+            True,
+            LinearProjectionScreen,
+            i18n.t("Scatter plot of two user-selected numeric axes."),
+            "linearprojection",
+            _inputs("Data"),
+            (),
+        ),
+        WidgetDefinition(
+            "radviz",
+            "visualize",
+            i18n.t("Radviz"),
+            True,
+            RadvizScreen,
+            i18n.t("Radial visualization with feature anchors on a circle."),
+            "radviz",
+            _inputs("Data"),
+            (),
+        ),
+        WidgetDefinition(
+            "heat-map",
+            "visualize",
+            i18n.t("Heat Map"),
+            True,
+            HeatMapScreen,
+            i18n.t("Pearson correlation matrix for numeric columns."),
+            "heatmap",
             _inputs("Data"),
             (),
         ),

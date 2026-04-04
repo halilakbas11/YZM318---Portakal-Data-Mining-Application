@@ -383,6 +383,111 @@ def _make_custom_icon(icon_name: str) -> QIcon | None:
         painter.drawLine(QPointF(9, 16), QPointF(15, 16))
         painter.drawLine(QPointF(9, 18), QPointF(15, 18))
 
+    elif icon_name == "barplot":
+        # Three vertical bars of different heights
+        painter.setBrush(QColor("#e07020"))
+        painter.drawRect(QRectF(3, 14, 4, 7))
+        painter.setBrush(QColor("#e07020").lighter(130))
+        painter.drawRect(QRectF(10, 8, 4, 13))
+        painter.setBrush(QColor("#e07020").lighter(160))
+        painter.drawRect(QRectF(17, 4, 4, 17))
+        painter.setPen(QPen(QColor("#9b9488"), 1))
+        painter.drawLine(QPointF(3, 21), QPointF(21, 21))
+
+    elif icon_name == "sieve":
+        # Grid with varying fill densities
+        for row in range(3):
+            for col in range(3):
+                size = 3 + (row + col) % 3
+                offset = (5 - size) // 2
+                x = 3 + col * 6 + offset
+                y = 3 + row * 6 + offset
+                painter.setBrush(QColor("#e07020"))
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawRect(QRectF(x, y, size, size))
+        painter.setPen(QPen(QColor("#9b9488"), 1))
+        painter.drawRect(QRectF(3, 3, 18, 18))
+        for i in range(1, 3):
+            painter.drawLine(QPointF(3 + i * 6, 3), QPointF(3 + i * 6, 21))
+            painter.drawLine(QPointF(3, 3 + i * 6), QPointF(21, 3 + i * 6))
+
+    elif icon_name == "mosaic":
+        # Proportional rectangles (mosaic layout)
+        painter.setBrush(QColor("#e07020"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(QRectF(3, 3, 8, 18))
+        painter.setBrush(QColor("#3b82f6"))
+        painter.drawRect(QRectF(12, 3, 10, 10))
+        painter.setBrush(QColor("#22c55e"))
+        painter.drawRect(QRectF(12, 14, 10, 7))
+        painter.setPen(QPen(QColor("#fffdf9"), 1))
+        painter.drawLine(QPointF(11, 3), QPointF(11, 21))
+
+    elif icon_name == "freeviz":
+        # Circle with lines radiating outward and dots
+        painter.setPen(QPen(QColor("#d0ccc3"), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(QRectF(4, 4, 16, 16))
+        painter.setPen(QPen(QColor("#e07020"), 1.5))
+        for angle_deg in [0, 60, 120, 180, 240, 300]:
+            import math as _math
+            rad = _math.radians(angle_deg)
+            cx, cy = 12.0, 12.0
+            ex = cx + 8 * _math.cos(rad)
+            ey = cy - 8 * _math.sin(rad)
+            painter.drawLine(QPointF(cx, cy), QPointF(ex, ey))
+        painter.setBrush(QColor("#e07020"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(QRectF(10, 10, 4, 4))
+        painter.setBrush(QColor("#3b82f6"))
+        painter.drawEllipse(QRectF(7, 7, 3, 3))
+        painter.setBrush(QColor("#22c55e"))
+        painter.drawEllipse(QRectF(13, 8, 3, 3))
+
+    elif icon_name == "linearprojection":
+        # Scatter of dots with a trend line
+        dots = [(5, 17), (7, 14), (9, 13), (11, 11), (13, 9), (15, 8), (17, 6)]
+        painter.setBrush(QColor("#3b82f6"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        for dx, dy in dots:
+            painter.drawEllipse(QRectF(dx - 1.5, dy - 1.5, 3, 3))
+        painter.setPen(QPen(QColor("#e07020"), 1.8))
+        painter.drawLine(QPointF(4, 18), QPointF(18, 5))
+
+    elif icon_name == "radviz":
+        # Circle with equally spaced anchor lines and scattered dots inside
+        painter.setPen(QPen(QColor("#d0ccc3"), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(QRectF(3, 3, 18, 18))
+        painter.setPen(QPen(QColor("#e07020"), 1.5))
+        for angle_deg in [90, 210, 330]:
+            import math as _math
+            rad = _math.radians(angle_deg)
+            cx, cy = 12.0, 12.0
+            ex = cx + 9 * _math.cos(rad)
+            ey = cy - 9 * _math.sin(rad)
+            painter.drawLine(QPointF(cx, cy), QPointF(ex, ey))
+        inner_dots = [(10, 11), (12, 9), (11, 13), (13, 11)]
+        for ci, (dx, dy) in enumerate(inner_dots):
+            colors = [QColor("#e07020"), QColor("#3b82f6"), QColor("#22c55e"), QColor("#a855f7")]
+            painter.setBrush(colors[ci])
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(QRectF(dx - 1.5, dy - 1.5, 3, 3))
+
+    elif icon_name == "heatmap":
+        # 3x3 grid with gradient-coloured cells
+        colors_grid = [
+            [QColor("#e07020"), QColor("#f5c89a"), QColor("#c8ddf4")],
+            [QColor("#f5c89a"), QColor("#e8e5df"), QColor("#91b4d8")],
+            [QColor("#c8ddf4"), QColor("#91b4d8"), QColor("#3b82f6")],
+        ]
+        cell = 6
+        for row in range(3):
+            for col in range(3):
+                painter.setBrush(colors_grid[row][col])
+                painter.setPen(QPen(QColor("#fffdf9"), 0.5))
+                painter.drawRect(QRectF(3 + col * cell, 3 + row * cell, cell, cell))
+
     else:
         drawn = False
 
