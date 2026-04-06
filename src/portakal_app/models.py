@@ -35,6 +35,7 @@ WORKFLOW_PORT_COMPATIBILITY_OVERRIDES = {
     ("Scores", "Data"): frozenset({"data-table", "save-data"}),
     ("Data", "Extra Data"): frozenset({"merge-data"}),
     ("Data", "Template Data"): frozenset({"apply-domain"}),
+    ("Model", "Tree"): frozenset({"tree-viewer"}),
 }
 
 
@@ -125,7 +126,14 @@ class PortDefinition:
 @dataclass(frozen=True)
 class WorkflowPayload:
     port_label: str
-    dataset: DatasetHandle
+    value: object
+
+    @property
+    def dataset(self) -> DatasetHandle | None:
+        return self.value if isinstance(self.value, DatasetHandle) else None
+
+    def with_port_label(self, port_label: str) -> "WorkflowPayload":
+        return WorkflowPayload(port_label, self.value)
 
 
 def workflow_ports_are_compatible(
