@@ -7,7 +7,7 @@ import numpy as np
 import polars as pl
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QItemSelectionModel, QSortFilterProxyModel, Qt, QSize
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QPainter, QPalette, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QStyledItemDelegate,
+    QStyle,
     QTableView,
     QVBoxLayout,
     QWidget,
@@ -81,7 +82,10 @@ class _DistributionDelegate(QStyledItemDelegate):
         distribution = np.asarray(values, dtype=float)
         total = float(np.sum(distribution))
         painter.save()
-        self.drawBackground(painter, option, index)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        background_role = QPalette.ColorRole.Highlight if selected else QPalette.ColorRole.Base
+        text_role = QPalette.ColorRole.HighlightedText if selected else QPalette.ColorRole.Text
+        painter.fillRect(option.rect, option.palette.color(background_role))
         rect = option.rect.adjusted(6, 6, -6, -6)
         if total > 0:
             start_x = float(rect.left())
@@ -96,7 +100,7 @@ class _DistributionDelegate(QStyledItemDelegate):
                 painter.setPen(QPen(self._colors[offset % len(self._colors)], bar_height, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap))
                 painter.drawLine(int(start_x), int(baseline), int(end_x), int(baseline))
                 start_x = end_x
-        painter.setPen(option.palette.color(option.palette.ColorRole.Text))
+        painter.setPen(option.palette.color(text_role))
         painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, str(int(total)) if total.is_integer() else f"{total:.1f}")
         painter.restore()
 

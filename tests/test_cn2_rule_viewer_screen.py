@@ -9,8 +9,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QItemSelectionModel
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QItemSelectionModel, QRect, Qt
+from PySide6.QtGui import QPainter, QPixmap
+from PySide6.QtWidgets import QApplication, QStyleOptionViewItem
 
 from portakal_app.data.services.cn2_rule_induction_service import CN2InductionSettings, CN2RuleInductionService
 from portakal_app.data.services.generated_dataset_service import GeneratedDatasetService
@@ -111,6 +112,23 @@ def test_cn2_rule_viewer_model_accepts_none_parent(app):
 
     assert screen._model.rowCount(None) == 0
     assert screen._model.columnCount(None) > 0
+
+
+def test_cn2_rule_distribution_delegate_paints_without_private_helper(app):
+    dataset = _build_dataset(GeneratedDatasetService())
+    classifier = _build_classifier(dataset)
+    screen = CN2RuleViewerScreen()
+    screen.set_input_payload(WorkflowPayload("Classifier", classifier))
+    app.processEvents()
+
+    option = QStyleOptionViewItem()
+    option.rect = QRect(0, 0, 160, 32)
+    option.palette = screen.palette()
+    pixmap = QPixmap(180, 40)
+    pixmap.fill(Qt.GlobalColor.white)
+    painter = QPainter(pixmap)
+    screen._view.itemDelegateForColumn(3).paint(painter, option, screen._proxy_model.index(0, 3))
+    painter.end()
 
 
 def test_cn2_rule_viewer_outputs_selected_and_annotated_rows(app):
