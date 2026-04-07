@@ -2,7 +2,7 @@
 
 Bu repository Ankara Üniversitesi 2026 dönemi YZM318 dersi kapsamında kurulmuştur. <br>
 Dr. Öğr. Üyesi Bahaeddin Türkoğlu danışmanlığında AÜ YVZM öğrencileri tarafından geliştirilen "Portakal" veri madenciliği uygulamasının versiyonları burada tutulacaktır.<br>
-Orijinal açık kaynaklı "Orange Data Mining" uygulamasından esinlenilmiştir (https://orangedatamining.com/). 
+Orijinal, açık kaynaklı "Orange Data Mining" uygulamasından esinlenilmiştir (https://orangedatamining.com/). 
 
 <br>
 <br>
@@ -13,7 +13,7 @@ The project draws inspiration from the open-source Orange Data Mining platform (
 
 ## Development
 
-Portakal Application desktop shell built with PySide6.
+Portakal desktop shell built with PySide6.
 
 Create a virtual environment and install dependencies:
 
