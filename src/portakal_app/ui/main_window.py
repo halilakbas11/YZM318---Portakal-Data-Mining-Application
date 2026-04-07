@@ -584,8 +584,9 @@ class MainWindow(QMainWindow):
             screen.set_paint_data_service(self._paint_data_service)
         if isinstance(screen, ColorScreen):
             screen.set_color_settings_service(self._color_settings_service)
-        if isinstance(screen, SaveDataScreen):
-            screen.set_save_data_service(self._save_data_service)
+        save_data_service_setter = getattr(screen, "set_save_data_service", None)
+        if callable(save_data_service_setter):
+            save_data_service_setter(self._save_data_service)
         output_handler = getattr(screen, "on_output_changed", None)
         if callable(output_handler):
             output_handler(lambda node_id=node_id: self._handle_node_output_changed(node_id))
@@ -945,7 +946,7 @@ class MainWindow(QMainWindow):
                         runtime.output_payloads = {}
                     elif definition.output_ports and output_dataset is not None:
                         old_payload = runtime.output_payload
-                        if old_payload is not None and old_payload.dataset is output_dataset:
+                        if old_payload is not None and old_payload.value is output_dataset:
                             pass  # Same dataset object, keep existing payload
                         else:
                             runtime.output_payload = WorkflowPayload(definition.output_ports[0].label, output_dataset)
@@ -965,7 +966,7 @@ class MainWindow(QMainWindow):
             if runtime is None or runtime.output_payload is None or runtime.output_payload.dataset is None:
                 continue
             active_payload = runtime.output_payload
-        if active_payload is None:
+        if active_payload is None or not isinstance(active_payload.dataset, DatasetHandle):
             self._state_store.update(current_dataset=None, current_dataset_id=None, current_dataset_path=None)
             return
         dataset = active_payload.dataset
@@ -978,8 +979,10 @@ class MainWindow(QMainWindow):
     def _dataset_preview_snapshot(self, payload: WorkflowPayload) -> dict[str, object]:
         dataset = payload.dataset
         if dataset is None:
+            value = payload.value
+            label = getattr(value, "display_name", value.__class__.__name__ if value is not None else "non-tabular payload")
             return {
-                "summary": f"{payload.port_label}: non-tabular payload",
+                "summary": f"{payload.port_label}: {label}\nNo tabular preview available for this output.",
                 "headers": [],
                 "rows": [],
             }
@@ -1004,13 +1007,13 @@ class MainWindow(QMainWindow):
         runtime = self._node_runtimes.get(node_id)
         if runtime is None:
             return {"summary": "No preview available.", "headers": [], "rows": []}
-        if runtime.output_payload is not None and runtime.output_payload.dataset is not None:
+        if runtime.output_payload is not None:
             return self._dataset_preview_snapshot(runtime.output_payload)
         input_payload = next(
             (
                 payload
                 for payload in runtime.input_payloads.values()
-                if payload is not None and payload.dataset is not None
+                if payload is not None and payload.value is not None
             ),
             None,
         )
