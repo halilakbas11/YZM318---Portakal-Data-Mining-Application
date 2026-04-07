@@ -119,11 +119,11 @@ class _RuleTableModel(QAbstractTableModel):
             i18n.t("Length"),
         ]
 
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802
-        return 0 if parent.isValid() else len(self._rules)
+    def rowCount(self, parent: QModelIndex | None = QModelIndex()) -> int:  # noqa: N802
+        return 0 if parent is not None and parent.isValid() else len(self._rules)
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802
-        return 0 if parent.isValid() else len(self._horizontal_headers)
+    def columnCount(self, parent: QModelIndex | None = QModelIndex()) -> int:  # noqa: N802
+        return 0 if parent is not None and parent.isValid() else len(self._horizontal_headers)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole):
         if role != Qt.ItemDataRole.DisplayRole:

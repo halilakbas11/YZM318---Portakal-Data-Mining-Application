@@ -106,6 +106,13 @@ def test_main_window_can_open_cn2_rule_viewer(app):
     assert isinstance(window._workspace.current_widget(), CN2RuleViewerScreen)
 
 
+def test_cn2_rule_viewer_model_accepts_none_parent(app):
+    screen = CN2RuleViewerScreen()
+
+    assert screen._model.rowCount(None) == 0
+    assert screen._model.columnCount(None) > 0
+
+
 def test_cn2_rule_viewer_outputs_selected_and_annotated_rows(app):
     dataset = _build_dataset(GeneratedDatasetService())
     classifier = _build_classifier(dataset)
