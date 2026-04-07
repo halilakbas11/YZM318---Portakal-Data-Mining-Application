@@ -55,3 +55,9 @@ class WorkflowNodeScreenSupport:
         port.
         """
         return None
+
+    def current_output_payload(self) -> WorkflowPayload | None:
+        return None
+
+    def current_output_payloads(self) -> dict[str, WorkflowPayload | None] | None:
+        return None

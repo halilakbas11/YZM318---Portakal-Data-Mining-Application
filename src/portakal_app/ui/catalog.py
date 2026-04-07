@@ -42,12 +42,18 @@ from portakal_app.ui.screens.select_columns_screen import SelectColumnsScreen
 from portakal_app.ui.screens.select_rows_screen import SelectRowsScreen
 
 from portakal_app.ui.screens.bar_plot_screen import BarPlotScreen
+from portakal_app.ui.screens.box_plot_screen import BoxPlotScreen
+from portakal_app.ui.screens.distributions_screen import DistributionsScreen
 from portakal_app.ui.screens.sieve_diagram_screen import SieveDiagramScreen
 from portakal_app.ui.screens.mosaic_display_screen import MosaicDisplayScreen
 from portakal_app.ui.screens.freeviz_screen import FreeVizScreen
 from portakal_app.ui.screens.linear_projection_screen import LinearProjectionScreen
 from portakal_app.ui.screens.radviz_screen import RadvizScreen
 from portakal_app.ui.screens.heat_map_screen import HeatMapScreen
+from portakal_app.ui.screens.line_plot_screen import LinePlotScreen
+from portakal_app.ui.screens.scatter_plot_screen import ScatterPlotScreen
+from portakal_app.ui.screens.tree_viewer_screen import TreeViewerScreen
+from portakal_app.ui.screens.violin_plot_screen import ViolinPlotScreen
 
 
 def _placeholder_factory(title: str, description: str):
@@ -376,7 +382,7 @@ def build_widgets() -> list[WidgetDefinition]:
         WidgetDefinition(
             "preprocess",
             "transform",
-            i18n.t("Preprocess"),
+            "Preprocess",
             True,
             PreprocessScreen,
             i18n.t("Build preprocessing pipelines."),
@@ -472,6 +478,80 @@ def build_widgets() -> list[WidgetDefinition]:
             "python",
             _inputs("Data"),
             _outputs("Data"),
+        ),
+        WidgetDefinition(
+            "tree-viewer",
+            "visualize",
+            i18n.t("Tree Viewer"),
+            True,
+            TreeViewerScreen,
+            i18n.t("Inspect trained tree structures and node selections."),
+            "model",
+            _inputs("Tree"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+        ),
+        WidgetDefinition(
+            "box-plot",
+            "visualize",
+            i18n.t("Box Plot"),
+            True,
+            BoxPlotScreen,
+            i18n.t("Visualize numeric quartiles or discrete value frequencies."),
+            "stats",
+            _inputs("Data"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+        ),
+        WidgetDefinition(
+            "violin-plot",
+            "visualize",
+            i18n.t("Violin Plot"),
+            True,
+            ViolinPlotScreen,
+            i18n.t("Show smoothed numeric distributions with selectable ranges."),
+            "stats",
+            _inputs("Data"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+        ),
+        WidgetDefinition(
+            "distributions",
+            "visualize",
+            i18n.t("Distributions"),
+            True,
+            DistributionsScreen,
+            i18n.t("Explore histograms and categorical distributions."),
+            "barplot",
+            _inputs("Data"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+        ),
+        WidgetDefinition(
+            "scatter-plot",
+            "visualize",
+            i18n.t("Scatter Plot"),
+            True,
+            ScatterPlotScreen,
+            i18n.t("Explore points visually."),
+            "scatter",
+            _inputs("Data"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data", "Features"),
+            input_channels=("Data", "Data Subset", "Features"),
+        ),
+        WidgetDefinition(
+            "line-plot",
+            "visualize",
+            i18n.t("Line Plot"),
+            True,
+            LinePlotScreen,
+            i18n.t("Compare instance profiles across numeric features."),
+            "linearprojection",
+            _inputs("Data"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+            input_channels=("Data", "Data Subset"),
         ),
         WidgetDefinition(
             "bar-plot",
