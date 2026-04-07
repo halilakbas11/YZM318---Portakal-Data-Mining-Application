@@ -13,7 +13,7 @@ The project draws inspiration from the open-source Orange Data Mining platform (
 
 ## Development
 
-Orange-inspired desktop shell built with PySide6.
+Portakal Application desktop shell built with PySide6.
 
 Create a virtual environment and install dependencies:
 
