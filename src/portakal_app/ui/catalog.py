@@ -54,6 +54,16 @@ from portakal_app.ui.screens.line_plot_screen import LinePlotScreen
 from portakal_app.ui.screens.scatter_plot_screen import ScatterPlotScreen
 from portakal_app.ui.screens.tree_viewer_screen import TreeViewerScreen
 from portakal_app.ui.screens.violin_plot_screen import ViolinPlotScreen
+from portakal_app.ui.screens.venn_diagram_screen import VennDiagramScreen
+from portakal_app.ui.screens.silhouette_plot_screen import SilhouettePlotScreen
+from portakal_app.ui.screens.pythagorean_forest_screen import PythagoreanForestScreen
+from portakal_app.ui.screens.pythagorean_tree_screen import PythagoreanTreeScreen
+from portakal_app.ui.screens.cn2_rule_viewer_screen import CN2RuleViewerScreen
+from portakal_app.ui.screens.cn2_rule_induction_screen import CN2RuleInductionScreen
+from portakal_app.ui.screens.nomogram_screen import NomogramScreen
+from portakal_app.ui.screens.logistic_regression_screen import LogisticRegressionScreen
+from portakal_app.ui.screens.scoring_sheet_screen import ScoringSheetScreen
+from portakal_app.ui.screens.scoring_sheet_viewer_screen import ScoringSheetViewerScreen
 
 
 def _placeholder_factory(title: str, description: str):
@@ -629,6 +639,121 @@ def build_widgets() -> list[WidgetDefinition]:
             "heatmap",
             _inputs("Data"),
             (),
+        ),
+        WidgetDefinition(
+            "venn-diagram",
+            "visualize",
+            i18n.t("Venn Diagram"),
+            True,
+            VennDiagramScreen,
+            i18n.t("Overlap of rows or features across multiple datasets."),
+            "venn",
+            _inputs("Data"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+            input_channels=("Data 1", "Data 2", "Data 3", "Data 4", "Data 5"),
+        ),
+        WidgetDefinition(
+            "silhouette-plot",
+            "visualize",
+            i18n.t("Silhouette Plot"),
+            True,
+            SilhouettePlotScreen,
+            i18n.t("Assess cluster quality with silhouette scores."),
+            "silhouette",
+            _inputs("Data"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+        ),
+        WidgetDefinition(
+            "pythagorean-forest",
+            "visualize",
+            i18n.t("Pythagorean Forest"),
+            True,
+            PythagoreanForestScreen,
+            i18n.t("Browse trees in a random forest as Pythagorean previews."),
+            "pythagorean-forest",
+            _inputs("Random Forest"),
+            _outputs("Tree"),
+        ),
+        WidgetDefinition(
+            "pythagorean-tree",
+            "visualize",
+            i18n.t("Pythagorean Tree"),
+            True,
+            PythagoreanTreeScreen,
+            i18n.t("Pythagorean tree visualization for decision trees."),
+            "pythagorean-tree",
+            _inputs("Tree"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+        ),
+        WidgetDefinition(
+            "cn2-rule-viewer",
+            "visualize",
+            i18n.t("CN2 Rule Viewer"),
+            True,
+            CN2RuleViewerScreen,
+            i18n.t("Review induced CN2 rules and inspect rows covered by the selected rules."),
+            "cn2-rule-viewer",
+            _inputs("Data", "Classifier"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+        ),
+        WidgetDefinition(
+            "nomogram",
+            "visualize",
+            i18n.t("Nomogram"),
+            True,
+            NomogramScreen,
+            i18n.t("Orange-style nomogram for logistic-regression feature contributions."),
+            "nomogram",
+            _inputs("Classifier", "Data"),
+            _outputs("Features"),
+        ),
+        WidgetDefinition(
+            "scoring-sheet-viewer",
+            "visualize",
+            i18n.t("Scoring Sheet Viewer"),
+            True,
+            ScoringSheetViewerScreen,
+            i18n.t("Visualize the scoring-sheet model."),
+            "scoring-sheet-viewer",
+            _inputs("Classifier", "Data"),
+            _outputs("Features"),
+        ),
+        WidgetDefinition(
+            "cn2-rule-induction",
+            "model",
+            i18n.t("CN2 Rule Induction"),
+            True,
+            CN2RuleInductionScreen,
+            i18n.t("Induce a basic CN2-style rule classifier for the Rule Viewer."),
+            "cn2-rule-induction",
+            _inputs("Data"),
+            _outputs("Classifier"),
+        ),
+        WidgetDefinition(
+            "logistic-regression",
+            "model",
+            i18n.t("Logistic Regression"),
+            True,
+            LogisticRegressionScreen,
+            i18n.t("Train a basic binary logistic-regression classifier for Nomogram."),
+            "logistic-regression",
+            _inputs("Data"),
+            _outputs("Classifier"),
+        ),
+        WidgetDefinition(
+            "scoring-sheet",
+            "model",
+            i18n.t("Scoring Sheet"),
+            True,
+            ScoringSheetScreen,
+            i18n.t("Train a basic scoring-sheet classifier for Scoring Sheet Viewer."),
+            "scoring-sheet",
+            _inputs("Data"),
+            _outputs("Classifier"),
         ),
         WidgetDefinition(
             "linear-regression",

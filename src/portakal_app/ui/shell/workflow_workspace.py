@@ -527,6 +527,13 @@ class WidgetScreenDialog(QDialog):
         footer = QHBoxLayout()
         footer.setSpacing(8)
 
+        self._save_export_button = None
+        if callable(getattr(self._screen, "save_export_dataset", None)):
+            self._save_export_button = QPushButton(i18n.t("Save"))
+            self._save_export_button.setProperty("secondary", True)
+            self._save_export_button.clicked.connect(getattr(self._screen, "save_export_dataset"))
+            footer.addWidget(self._save_export_button)
+
         self._menu_button = self._make_footer_tool("menu", i18n.t("Open widget menu"))
         self._menu_button.clicked.connect(self._show_menu)
         footer.addWidget(self._menu_button)
@@ -590,6 +597,9 @@ class WidgetScreenDialog(QDialog):
 
     def refresh_footer(self) -> None:
         self._status_label.setText(self._footer_status_text())
+        if self._save_export_button is not None:
+            can_save_provider = getattr(self._screen, "can_save_export_dataset", None)
+            self._save_export_button.setEnabled(bool(can_save_provider()) if callable(can_save_provider) else True)
         if callable(self._data_preview_enabled_provider):
             enabled = bool(self._data_preview_enabled_provider())
             self._data_button.setEnabled(enabled)
@@ -598,6 +608,8 @@ class WidgetScreenDialog(QDialog):
         self._widget_definition = widget_definition
 
     def refresh_translations(self) -> None:
+        if self._save_export_button is not None:
+            self._save_export_button.setText(i18n.t("Save"))
         self._menu_button.setToolTip(i18n.t("Open widget menu"))
         self._help_button.setToolTip(i18n.t("Help"))
         self._data_button.setToolTip(i18n.t("Open data preview"))
@@ -656,6 +668,12 @@ class WidgetScreenDialog(QDialog):
             apply_action = submenu.addAction("Apply")
             apply_action.triggered.connect(lambda: getattr(self._screen, "_apply_button").click())
             apply_action.setEnabled(getattr(self._screen, "_apply_button").isEnabled())
+            actions_added = True
+
+        if self._save_export_button is not None:
+            save_export_action = submenu.addAction(i18n.t("Save"))
+            save_export_action.triggered.connect(self._save_export_button.click)
+            save_export_action.setEnabled(self._save_export_button.isEnabled())
             actions_added = True
 
         if hasattr(self._screen, "_reset_button"):
