@@ -474,17 +474,6 @@ def build_widgets() -> list[WidgetDefinition]:
             _outputs("Data"),
         ),
         WidgetDefinition(
-            "scatter-plot",
-            "visualize",
-            i18n.t("Scatter Plot"),
-            False,
-            _placeholder_factory("Scatter Plot", "Visualization widgets will be integrated by a later group."),
-            i18n.t("Explore points visually."),
-            "scatter",
-            _inputs("Data"),
-            (),
-        ),
-        WidgetDefinition(
             "bar-plot",
             "visualize",
             i18n.t("Bar Plot"),

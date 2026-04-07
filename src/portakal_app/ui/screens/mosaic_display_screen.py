@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from portakal_app.data.models import DatasetHandle
+from portakal_app.ui import i18n
 from portakal_app.ui.screens.node_screen import WorkflowNodeScreenSupport
 
 # ── Palette for category colouring ────────────────────────────────────────────
@@ -388,7 +389,7 @@ class MosaicDisplayScreen(QWidget, WorkflowNodeScreenSupport):
         chart_layout.addWidget(self._chart)
         layout.addWidget(chart_box, 1)
 
-        self._status_label = QLabel("Load a dataset to display a mosaic plot.")
+        self._status_label = QLabel(i18n.t("Load a dataset to display a mosaic plot."))
         self._status_label.setProperty("muted", True)
         layout.addWidget(self._status_label)
 
@@ -404,7 +405,15 @@ class MosaicDisplayScreen(QWidget, WorkflowNodeScreenSupport):
             cat_cols = self._categorical_columns()
             self._col_combo.addItems(cat_cols)
             self._row_combo.addItems(cat_cols)
-            if len(cat_cols) >= 2:
+            # Auto-select the target (class) column as Y (color) — matches Orange
+            target_selected = False
+            for col in dataset.domain.target_columns:
+                idx = self._row_combo.findText(col.name)
+                if idx >= 0:
+                    self._row_combo.setCurrentIndex(idx)
+                    target_selected = True
+                    break
+            if not target_selected and len(cat_cols) >= 2:
                 self._row_combo.setCurrentIndex(1)
         for combo in (self._col_combo, self._row_combo):
             combo.blockSignals(False)
@@ -416,21 +425,62 @@ class MosaicDisplayScreen(QWidget, WorkflowNodeScreenSupport):
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _categorical_columns(self) -> list[str]:
+        """Return ALL columns (including target columns) — numeric columns with
+        many unique values are auto-binned when building the contingency table."""
         if self._dataset is None:
             return []
+        cols = [col.name for col in self._dataset.domain.columns]
+        target_cols = [col.name for col in self._dataset.domain.target_columns]
+        # Add target columns that aren't already in regular columns
+        for t in target_cols:
+            if t not in cols:
+                cols.append(t)
+        return cols
+
+    def _discretize(self, series_vals: list, col_name: str) -> list[str]:
+        """
+        Convert column values to category labels.
+        • Non-numeric / low-cardinality numeric (≤ 15 unique) → str(value)
+        • High-cardinality numeric → 5 equal-width bins like "[0.0, 2.0)"
+          Matches Orange's auto-discretization style.
+        """
+        if self._dataset is None:
+            return [str(v) if v is not None else "(missing)" for v in series_vals]
         df = self._dataset.dataframe
-        result = []
-        for col in self._dataset.domain.columns:
-            try:
-                is_cat = (
-                    not df[col.name].dtype.is_numeric()
-                    or df[col.name].n_unique() <= 20
-                )
-            except Exception:
-                is_cat = True
-            if is_cat:
-                result.append(col.name)
-        return result or [col.name for col in self._dataset.domain.columns]
+        try:
+            is_num = df[col_name].dtype.is_numeric()
+        except Exception:
+            is_num = False
+
+        if not is_num:
+            return [str(v) if v is not None else "(missing)" for v in series_vals]
+
+        non_null = [v for v in series_vals if v is not None]
+        if len(set(non_null)) <= 15:
+            return [str(int(v)) if isinstance(v, float) and v == int(v)
+                    else (str(v) if v is not None else "(missing)")
+                    for v in series_vals]
+
+        try:
+            nums = [float(v) for v in non_null]
+            lo, hi = min(nums), max(nums)
+            if hi == lo:
+                return [str(v) if v is not None else "(missing)" for v in series_vals]
+            n_bins = 5
+            step = (hi - lo) / n_bins
+
+            def _label(v) -> str:
+                if v is None:
+                    return "(missing)"
+                fv = float(v)
+                b = min(int((fv - lo) / step), n_bins - 1)
+                b_lo = lo + b * step
+                b_hi = lo + (b + 1) * step
+                return f"[{b_lo:.2g}, {b_hi:.2g})"
+
+            return [_label(v) for v in series_vals]
+        except Exception:
+            return [str(v) if v is not None else "(missing)" for v in series_vals]
 
     def _sort_categories(self, counts: dict[str, int], limit: int) -> list[str]:
         """Sort category labels according to the current sort combo selection."""
@@ -446,7 +496,7 @@ class MosaicDisplayScreen(QWidget, WorkflowNodeScreenSupport):
     def _refresh(self) -> None:
         if self._dataset is None:
             self._chart.set_data({}, {}, {}, [], [], "", "", 0)
-            self._status_label.setText("Load a dataset to display a mosaic plot.")
+            self._status_label.setText(i18n.t("Load a dataset to display a mosaic plot."))
             return
 
         col_name = self._col_combo.currentText()
@@ -454,22 +504,19 @@ class MosaicDisplayScreen(QWidget, WorkflowNodeScreenSupport):
 
         if not col_name or not row_name or col_name == row_name:
             self._chart.set_data({}, {}, {}, [], [], "", "", 0)
-            self._status_label.setText("Select two different categorical columns.")
+            self._status_label.setText(i18n.t("Select two different columns."))
             return
 
         df = self._dataset.dataframe
         try:
-            col_series = [
-                str(v) if v is not None else "(missing)"
-                for v in df[col_name].to_list()
-            ]
-            row_series = [
-                str(v) if v is not None else "(missing)"
-                for v in df[row_name].to_list()
-            ]
+            col_raw = df[col_name].to_list()
+            row_raw = df[row_name].to_list()
+            # Auto-bin numeric columns with many unique values
+            col_series = self._discretize(col_raw, col_name)
+            row_series = self._discretize(row_raw, row_name)
         except Exception:
             self._chart.set_data({}, {}, {}, [], [], "", "", 0)
-            self._status_label.setText("Column not found.")
+            self._status_label.setText(i18n.t("Column not found."))
             return
 
         n_total = len(col_series)

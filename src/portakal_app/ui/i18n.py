@@ -793,6 +793,94 @@ class I18nManager(QObject):
                 " value: ": " değer: ",
                 "Remove redundant instance": "Artık örneği kaldır",
                 "Instance id": "Örnek kimliği",
+
+                # ── 7 Görselleştirme Bileşeni – widget adları ──
+                "Bar Plot": "Çubuk Grafiği",
+                "Sieve Diagram": "Elek Diyagramı",
+                "Mosaic Display": "Mozaik Görüntü",
+                "Linear Projection": "Doğrusal Projeksiyon",
+                "Heat Map": "Isı Haritası",
+
+                # ── 7 Görselleştirme Bileşeni – katalog açıklamaları ──
+                "Frequency bars for categorical or binned numeric columns.": "Kategorik veya gruplanmış sayısal sütunlar için frekans çubukları.",
+                "Association between two categorical variables.": "İki kategorik değişken arasındaki ilişki.",
+                "Proportional mosaic plot for two categorical variables.": "İki kategorik değişken için orantılı mozaik grafik.",
+                "Force-directed linear projection onto 2D.": "Kuvvet yönlendirmeli 2B doğrusal projeksiyon.",
+                "Scatter plot of two user-selected numeric axes.": "Kullanıcı seçimli iki sayısal eksen dağılım grafiği.",
+                "Radial visualization with feature anchors on a circle.": "Çember üzerinde özellik çapaları ile radyal görselleştirme.",
+                "Pearson correlation matrix for numeric columns.": "Sayısal sütunlar için Pearson korelasyon matrisi.",
+
+                # ── Bar Plot ekranı ──
+                "Group / Color:": "Grup / Renk:",
+                "Label by:": "Etiket ile:",
+                "Sort:": "Sırala:",
+                "Dataset order": "Veri seti sırası",
+                "By value ↓": "Değere göre ↓",
+                "By value ↑": "Değere göre ↑",
+                "Alphabetically": "Alfabetik",
+                "Show values": "Değerleri göster",
+                "Error bars": "Hata çubukları",
+                "Chart": "Grafik",
+                "Load a dataset to see the bar plot.": "Çubuk grafiği için bir veri seti yükleyin.",
+                "Select a column.": "Bir sütun seçin.",
+                "No data to display.\nLoad a dataset and select a column.": "Gösterilecek veri yok.\nBir veri seti yükleyin ve sütun seçin.",
+
+                # ── Sieve Diagram ekranı ──
+                "Row variable:": "Satır değişkeni:",
+                "Column variable:": "Sütun değişkeni:",
+                "By frequency ↓": "Sıklığa göre ↓",
+                "By frequency ↑": "Sıklığa göre ↑",
+                "Score Combinations": "Kombinasyonları Puanla",
+                "Find the pair with the highest χ² statistic": "En yüksek χ² istatistiğine sahip çifti bul",
+                "Diagram": "Diyagram",
+                "Load a dataset to visualise associations.": "İlişkileri görselleştirmek için bir veri seti yükleyin.",
+                "Select two different categorical columns.": "İki farklı kategorik sütun seçin.",
+
+                # ── Mosaic Display ekranı ──
+                "X (columns):": "X (sütunlar):",
+                "Y (color):": "Y (renk):",
+                "Color by Pearson residual": "Pearson artığına göre renklendir",
+                "Blue = more than expected  ·  Red = less than expected": "Mavi = beklenenden fazla  ·  Kırmızı = beklenenden az",
+                "Mosaic": "Mozaik",
+                "Load a dataset to display a mosaic plot.": "Mozaik grafik için bir veri seti yükleyin.",
+
+                # ── FreeViz ekranı ──
+                "Color by:": "Renge göre:",
+                "Max iter:": "Maks. yineleme:",
+                "LR:": "ÖO:",
+                "▶ Run": "▶ Çalıştır",
+                "⏸ Pause": "⏸ Duraklat",
+                "↺ Reset": "↺ Sıfırla",
+                "Projection": "Projeksiyon",
+
+                # ── Linear Projection ekranı ──
+                "Axes": "Eksenler",
+                "X axis:": "X ekseni:",
+                "Y axis:": "Y ekseni:",
+                "Regression line": "Regresyon doğrusu",
+                "Max pts:": "Maks. nokta:",
+                " pts": " nokta",
+                "Select X and Y columns.": "X ve Y sütunlarını seçin.",
+                "No valid (non-null) data points.": "Geçerli (null olmayan) veri noktası yok.",
+                "Column not found.": "Sütun bulunamadı.",
+
+                # ── Radviz ekranı ──
+                "Max points:": "Maks. nokta:",
+                "No data rows.": "Veri satırı yok.",
+                "No data.\nLoad a dataset with at least 2 numeric columns.": "Veri yok.\nEn az 2 sayısal sütun içeren bir veri seti yükleyin.",
+
+                # ── Heat Map ekranı ──
+                "Mode:": "Mod:",
+                "Pearson correlation": "Pearson korelasyonu",
+                "Raw values": "Ham değerler",
+                "Max cols:": "Maks. sütun:",
+                "Cluster rows/cols": "Satır/sütun kümeleme",
+                "Matrix": "Matris",
+                "Need at least 2 numeric columns.": "En az 2 sayısal sütun gereklidir.",
+
+                # ── Paylaşılan durum mesajları ──
+                "Load a dataset with numeric columns.": "Sayısal sütunlar içeren bir veri seti yükleyin.",
+                "Load a dataset with at least 2 numeric columns.": "En az 2 sayısal sütun içeren bir veri seti yükleyin.",
             }
         }
         self._reverse_translations: dict[str, dict[str, str]] = {
