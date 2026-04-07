@@ -5,21 +5,23 @@ import random
 
 import numpy as np
 
-from PySide6.QtCore import Qt, QRect
+from PySide6.QtCore import Qt, QRect, QPoint, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QFont, QFontMetrics
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QSizePolicy,
-    QSpinBox,
+    QSlider,
     QToolTip,
     QVBoxLayout,
     QWidget,
 )
 
 from portakal_app.data.models import DatasetHandle
+from portakal_app.ui import i18n
 from portakal_app.ui.screens.node_screen import WorkflowNodeScreenSupport
 
 _PALETTE = [
@@ -44,7 +46,11 @@ class _RadVizWidget(QWidget):
     • Per-class colour legend
     • Hover tooltip: top-3 anchor weights and class
     • Font-metric–based label truncation for anchors and legend
+    • Scroll-wheel zoom, drag-anchor to move anchor angle, drag-canvas to pan
     """
+
+    # Emitted when user drags an anchor: (anchor_idx, new_angle_rad)
+    anchor_moved = Signal(int, float)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -54,7 +60,27 @@ class _RadVizWidget(QWidget):
         self._weights: list[list[float]] = []                # per-point normalised weights
         self._feature_names: list[str] = []
         self._dot_rects: list[tuple[QRect, str]] = []
-        self.setMinimumHeight(260)
+
+        # View state
+        self._zoom: float = 1.0
+        self._pan_x: float = 0.0
+        self._pan_y: float = 0.0
+        self._drag_start: QPoint | None = None
+        self._drag_anchor_idx: int | None = None
+        self._anchor_screen_pos: list[tuple[int, int]] = []
+
+        # Cached geometry
+        self._display_cx: float = 0.0
+        self._display_cy: float = 0.0
+        self._display_radius: float = 100.0
+
+        # Presentation flags
+        self._show_anchors: bool = True
+        self._jitter: float = 0.0
+        self._point_size: int = 4
+        self._opacity: int = 165
+
+        self.setMinimumHeight(360)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMouseTracking(True)
 
@@ -74,15 +100,87 @@ class _RadVizWidget(QWidget):
         self._dot_rects = []
         self.update()
 
-    # ── Tooltip ────────────────────────────────────────────────────────────────
+    def reset_view(self) -> None:
+        self._zoom = 1.0
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self.update()
+
+    def set_show_anchors(self, show: bool) -> None:
+        self._show_anchors = show
+        self.update()
+
+    def set_jitter(self, amount: float) -> None:
+        self._jitter = amount
+        self.update()
+
+    def set_point_size(self, size: int) -> None:
+        self._point_size = max(2, size)
+        self.update()
+
+    def set_opacity(self, opacity: int) -> None:
+        self._opacity = max(30, min(255, opacity))
+        self.update()
+
+    # ── Scroll: zoom ──────────────────────────────────────────────────────────
+
+    def wheelEvent(self, event) -> None:
+        delta = event.angleDelta().y()
+        if delta > 0:
+            self._zoom = min(self._zoom * 1.15, 8.0)
+        else:
+            self._zoom = max(self._zoom / 1.15, 0.2)
+        self.update()
+
+    # ── Mouse: anchor drag or pan ─────────────────────────────────────────────
+
+    def _anchor_at(self, pos: QPoint) -> int | None:
+        for k, (asx, asy) in enumerate(self._anchor_screen_pos):
+            if abs(pos.x() - asx) <= 9 and abs(pos.y() - asy) <= 9:
+                return k
+        return None
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = event.position().toPoint()
+            self._drag_anchor_idx = self._anchor_at(pos)
+            if self._drag_anchor_idx is None:
+                self._drag_start = pos
 
     def mouseMoveEvent(self, event) -> None:
         pos = event.position().toPoint()
+
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            if self._drag_anchor_idx is not None:
+                # Move anchor: compute angle from center
+                r = self._display_radius
+                if r > 1:
+                    dx = (pos.x() - self._display_cx) / r
+                    dy = -(pos.y() - self._display_cy) / r
+                    new_angle = math.atan2(dy, dx)
+                    self.anchor_moved.emit(self._drag_anchor_idx, new_angle)
+                QToolTip.hideText()
+                return
+            if self._drag_start is not None:
+                # Pan the view
+                self._pan_x += pos.x() - self._drag_start.x()
+                self._pan_y += pos.y() - self._drag_start.y()
+                self._drag_start = pos
+                self.update()
+                QToolTip.hideText()
+                return
+
+        # Hover tooltip
         for rect, tip in self._dot_rects:
             if rect.contains(pos):
                 QToolTip.showText(event.globalPosition().toPoint(), tip, self)
                 return
         QToolTip.hideText()
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = None
+            self._drag_anchor_idx = None
 
     def leaveEvent(self, _event) -> None:
         QToolTip.hideText()
@@ -101,16 +199,31 @@ class _RadVizWidget(QWidget):
             return
 
         self._dot_rects = []
+        self._anchor_screen_pos = []
 
-        w, h = self.width(), self.height()
+        canvas_w, canvas_h = self.width(), self.height()
         legend_w = 130 if self._class_labels else 0
         margin = 62
-        cx = (w - legend_w) / 2
-        cy = h / 2
-        radius = min(cx - margin, cy - margin)
+        # Apply pan offset
+        cx = (canvas_w - legend_w) / 2 + self._pan_x
+        cy = canvas_h / 2 + self._pan_y
+        base_radius = min((canvas_w - legend_w) / 2 - margin, canvas_h / 2 - margin)
+        radius = base_radius * self._zoom
+
+        # Cache for mouse events
+        self._display_cx = cx
+        self._display_cy = cy
+        self._display_radius = radius
 
         painter.setFont(QFont(self.font().family(), 8))
         fm = QFontMetrics(painter.font())
+
+        # ── Hint ──────────────────────────────────────────────────────────────
+        painter.setPen(QColor(160, 155, 145, 160))
+        painter.setFont(QFont(self.font().family(), 7))
+        hint = f"scroll=zoom  drag-anchor=move  drag-canvas=pan  {self._zoom:.2f}×"
+        painter.drawText(4, canvas_h - 4, hint)
+        painter.setFont(QFont(self.font().family(), 8))
 
         # ── Guide rings ────────────────────────────────────────────────────────
         for frac, alpha in ((0.25, 40), (0.5, 70), (0.75, 100)):
@@ -127,15 +240,20 @@ class _RadVizWidget(QWidget):
 
         # ── Data points ────────────────────────────────────────────────────────
         no_class_color = QColor("#3b82f6")
+        r = self._point_size
+        rng = random.Random(1)
         for idx, (px, py, ci) in enumerate(self._points):
-            sx = int(cx + px * radius)
-            sy = int(cy - py * radius)
+            # Apply jitter
+            jx = px + (rng.random() - 0.5) * self._jitter * 0.15 if self._jitter else px
+            jy = py + (rng.random() - 0.5) * self._jitter * 0.15 if self._jitter else py
+            sx = int(cx + jx * radius)
+            sy = int(cy - jy * radius)
             base_color = _PALETTE[ci % len(_PALETTE)] if self._class_labels else no_class_color
             color = QColor(base_color)
-            color.setAlpha(165)
+            color.setAlpha(self._opacity)
             painter.setBrush(color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(sx - _POINT_R, sy - _POINT_R, _POINT_R * 2, _POINT_R * 2)
+            painter.drawEllipse(sx - r, sy - r, r * 2, r * 2)
 
             # Tooltip: class + top-3 feature weights
             lbl = self._class_labels[ci] if ci < len(self._class_labels) else str(ci)
@@ -149,35 +267,34 @@ class _RadVizWidget(QWidget):
             else:
                 tip = f"Class: {lbl}<br>x: {px:.3f}  y: {py:.3f}"
             self._dot_rects.append((
-                QRect(sx - _POINT_R - 2, sy - _POINT_R - 2,
-                      (_POINT_R + 2) * 2, (_POINT_R + 2) * 2),
+                QRect(sx - r - 2, sy - r - 2, (r + 2) * 2, (r + 2) * 2),
                 tip,
             ))
 
         # ── Anchors ────────────────────────────────────────────────────────────
-        for name, angle in self._anchors:
+        for k, (name, angle) in enumerate(self._anchors):
             ax = math.cos(angle)
             ay = math.sin(angle)
             sx = int(cx + ax * radius)
             sy = int(cy - ay * radius)
+            self._anchor_screen_pos.append((sx, sy))
 
-            painter.setPen(QPen(QColor("#e07020"), 1.5))
-            painter.drawLine(int(cx), int(cy), sx, sy)
-
-            painter.setBrush(QColor("#e07020"))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(sx - 5, sy - 5, 10, 10)
-
-            # Label — font-metrics truncation, offset outward from circle edge
-            lx = int(cx + ax * (radius + 18))
-            ly = int(cy - ay * (radius + 18))
-            painter.setPen(QColor("#3b2a10"))
-            lbl = fm.elidedText(name, Qt.TextElideMode.ElideRight, 88)
-            painter.drawText(lx - 44, ly - 8, 88, 16, Qt.AlignmentFlag.AlignCenter, lbl)
+            if self._show_anchors:
+                painter.setPen(QPen(QColor("#e07020"), 1.5))
+                painter.drawLine(int(cx), int(cy), sx, sy)
+                painter.setBrush(QColor("#e07020"))
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawEllipse(sx - 5, sy - 5, 10, 10)
+                # Label offset outward
+                lx = int(cx + ax * (radius + 18))
+                ly = int(cy - ay * (radius + 18))
+                painter.setPen(QColor("#3b2a10"))
+                lbl = fm.elidedText(name, Qt.TextElideMode.ElideRight, 88)
+                painter.drawText(lx - 44, ly - 8, 88, 16, Qt.AlignmentFlag.AlignCenter, lbl)
 
         # ── Legend ─────────────────────────────────────────────────────────────
         if self._class_labels:
-            lx = w - legend_w + 4
+            lx = canvas_w - legend_w + 4
             for i, lbl in enumerate(self._class_labels[:8]):
                 ly = 10 + i * 20
                 color = _PALETTE[i % len(_PALETTE)]
@@ -185,7 +302,6 @@ class _RadVizWidget(QWidget):
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.drawEllipse(lx, ly + 3, 10, 10)
                 painter.setPen(QColor("#534b40"))
-                # Font-metrics truncation for legend labels
                 lbl_t = fm.elidedText(lbl, Qt.TextElideMode.ElideRight, legend_w - 20)
                 painter.drawText(lx + 14, ly, legend_w - 18, 16,
                                  Qt.AlignmentFlag.AlignVCenter, lbl_t)
@@ -205,14 +321,28 @@ class RadvizScreen(QWidget, WorkflowNodeScreenSupport):
 
     Numpy-vectorized data loading and projection for speed and clarity.
     Points near an anchor have high normalised values for that feature.
+
+    Interactions:
+    • Scroll wheel         → zoom in / out
+    • Drag anchor dot      → move anchor angle around the circle
+    • Drag canvas          → pan the view
     """
 
-    MAX_POINTS = 500
+    MAX_POINTS = 1000
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._init_workflow_node_support()
         self._dataset: DatasetHandle | None = None
+        # Cached computed data to support anchor drag without full recompute
+        self._W: np.ndarray | None = None              # (n_pts, n_feat) normalized weights
+        self._anchor_angles: list[float] = []           # one per feature
+        self._class_series: list[str] | None = None
+        self._class_map: dict[str, int] = {}
+        self._class_labels_cache: list[str] = []
+        self._feature_names_cache: list[str] = []
+        self._n_pts: int = 0
+        self._n_total: int = 0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -226,34 +356,76 @@ class RadvizScreen(QWidget, WorkflowNodeScreenSupport):
             "Feature anchors (orange) on a circle. "
             "Each point sits at the normalised weighted centre of its feature values. "
             "Points near an anchor have high values for that feature. "
-            "Hover for per-feature weights."
+            "Drag an anchor to reposition it · scroll to zoom · hover for weights."
         )
         desc.setWordWrap(True)
         desc.setProperty("muted", True)
         layout.addWidget(desc)
 
         ctrl_box = QGroupBox("Settings")
-        ctrl = QHBoxLayout(ctrl_box)
-        ctrl.addWidget(QLabel("Color by:"))
+        ctrl_vbox = QVBoxLayout(ctrl_box)
+        ctrl_vbox.setSpacing(4)
+
+        # Row 1: Color by, Show anchors
+        row1 = QHBoxLayout()
+        row1.setSpacing(6)
+        row1.addWidget(QLabel("Color by:"))
         self._class_combo = QComboBox()
         self._class_combo.currentTextChanged.connect(self._refresh)
-        ctrl.addWidget(self._class_combo, 1)
-        ctrl.addWidget(QLabel("Max points:"))
-        self._max_spin = QSpinBox()
-        self._max_spin.setRange(50, 2000)
-        self._max_spin.setValue(self.MAX_POINTS)
-        self._max_spin.setSuffix(" pts")
-        self._max_spin.valueChanged.connect(self._refresh)
-        ctrl.addWidget(self._max_spin)
+        row1.addWidget(self._class_combo, 2)
+
+        self._show_anchors_cb = QCheckBox("Show anchors")
+        self._show_anchors_cb.setChecked(True)
+        self._show_anchors_cb.stateChanged.connect(
+            lambda s: self._chart.set_show_anchors(bool(s)))
+        row1.addWidget(self._show_anchors_cb)
+
+        row1.addStretch(1)
+        ctrl_vbox.addLayout(row1)
+
+        # Row 2: Jitter, Size, Opacity
+        row2 = QHBoxLayout()
+        row2.setSpacing(6)
+
+        row2.addWidget(QLabel("Jitter:"))
+        self._jitter_slider = QSlider(Qt.Orientation.Horizontal)
+        self._jitter_slider.setRange(0, 50)
+        self._jitter_slider.setValue(0)
+        self._jitter_slider.setMaximumWidth(80)
+        self._jitter_slider.setToolTip("Add random jitter to separate overlapping points")
+        self._jitter_slider.valueChanged.connect(
+            lambda v: self._chart.set_jitter(v / 50.0))
+        row2.addWidget(self._jitter_slider)
+
+        row2.addWidget(QLabel("Size:"))
+        self._size_slider = QSlider(Qt.Orientation.Horizontal)
+        self._size_slider.setRange(2, 12)
+        self._size_slider.setValue(4)
+        self._size_slider.setMaximumWidth(70)
+        row2.addWidget(self._size_slider)
+
+        row2.addWidget(QLabel("Opacity:"))
+        self._opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self._opacity_slider.setRange(30, 255)
+        self._opacity_slider.setValue(165)
+        self._opacity_slider.setMaximumWidth(80)
+        row2.addWidget(self._opacity_slider)
+
+        row2.addStretch(1)
+        ctrl_vbox.addLayout(row2)
         layout.addWidget(ctrl_box)
 
-        chart_box = QGroupBox("Projection")
+        chart_box = QGroupBox("Projection  (scroll=zoom · drag-anchor=move · drag-canvas=pan)")
         chart_layout = QVBoxLayout(chart_box)
         self._chart = _RadVizWidget()
+        self._chart.anchor_moved.connect(self._on_anchor_moved)
+        # Connect sliders after chart is created
+        self._size_slider.valueChanged.connect(self._chart.set_point_size)
+        self._opacity_slider.valueChanged.connect(self._chart.set_opacity)
         chart_layout.addWidget(self._chart)
         layout.addWidget(chart_box, 1)
 
-        self._status_label = QLabel("Load a dataset with numeric columns.")
+        self._status_label = QLabel(i18n.t("Load a dataset with numeric columns."))
         self._status_label.setProperty("muted", True)
         layout.addWidget(self._status_label)
 
@@ -281,10 +453,17 @@ class RadvizScreen(QWidget, WorkflowNodeScreenSupport):
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
+    def _on_anchor_moved(self, idx: int, new_angle: float) -> None:
+        """Called when user drags an anchor dot. Update angle and redraw."""
+        if 0 <= idx < len(self._anchor_angles):
+            self._anchor_angles[idx] = new_angle
+            self._redraw()
+
     def _refresh(self) -> None:
+        """Full recompute: load data, normalise, set initial anchor angles."""
         if self._dataset is None:
             self._chart.set_projection([], [], [])
-            self._status_label.setText("Load a dataset with numeric columns.")
+            self._status_label.setText(i18n.t("Load a dataset with numeric columns."))
             return
 
         df = self._dataset.dataframe
@@ -294,19 +473,18 @@ class RadvizScreen(QWidget, WorkflowNodeScreenSupport):
         ]
         if len(numeric_cols) < 2:
             self._chart.set_projection([], [], [])
-            self._status_label.setText("Need at least 2 numeric columns.")
+            self._status_label.setText(i18n.t("Need at least 2 numeric columns."))
             return
 
         class_col = self._class_combo.currentText()
         if class_col == "(none)":
             class_col = None
 
-        max_pts = self._max_spin.value()
         n = len(df)
         indices = list(range(n))
-        if n > max_pts:
+        if n > self.MAX_POINTS:
             random.seed(42)
-            indices = random.sample(indices, max_pts)
+            indices = random.sample(indices, self.MAX_POINTS)
             indices.sort()
 
         n_pts = len(indices)
@@ -314,7 +492,7 @@ class RadvizScreen(QWidget, WorkflowNodeScreenSupport):
 
         if n_pts == 0:
             self._chart.set_projection([], [], [])
-            self._status_label.setText("No data rows.")
+            self._status_label.setText(i18n.t("No data rows."))
             return
 
         # ── Build feature matrix with numpy ───────────────────────────────────
@@ -324,27 +502,14 @@ class RadvizScreen(QWidget, WorkflowNodeScreenSupport):
                 v = df[col][i]
                 X[row_i, k] = float(v) if v is not None else 0.0
 
-        # Min-max normalise each column to [0, 1]
         col_min = X.min(axis=0)
         col_rng = X.max(axis=0) - col_min
-        col_rng[col_rng < 1e-10] = 1.0   # constant columns → avoid div-by-zero
-        X = (X - col_min) / col_rng       # (n_pts, n_feat) in [0, 1]
+        col_rng[col_rng < 1e-10] = 1.0
+        X = (X - col_min) / col_rng
 
-        # ── Row-normalise: w_i = x_i / Σx_i (RadViz formula) ─────────────────
         row_sums = X.sum(axis=1, keepdims=True)
-        row_sums[row_sums < 1e-10] = 1.0  # all-zero rows → centre of circle
-        W = X / row_sums                   # (n_pts, n_feat)
-
-        # ── Anchor angles: equally spaced starting at π/2 (top) ──────────────
-        angles = [math.pi / 2 - 2 * math.pi * i / n_feat for i in range(n_feat)]
-        anchors_list: list[tuple[str, float]] = list(zip(numeric_cols, angles))
-        anchor_coords = np.array(                   # (n_feat, 2)
-            [[math.cos(a), math.sin(a)] for a in angles],
-            dtype=np.float64,
-        )
-
-        # ── Project: P = W @ anchor_coords  (n_pts, 2) ───────────────────────
-        P = W @ anchor_coords
+        row_sums[row_sums < 1e-10] = 1.0
+        W = X / row_sums
 
         # ── Class mapping ─────────────────────────────────────────────────────
         class_labels: list[str] = []
@@ -359,24 +524,58 @@ class RadvizScreen(QWidget, WorkflowNodeScreenSupport):
             class_labels = unique
             class_map = {v: idx for idx, v in enumerate(unique)}
 
-        # ── Build output lists ────────────────────────────────────────────────
+        # ── Initial anchor angles: equally spaced starting at π/2 (top) ──────
+        angles = [math.pi / 2 - 2 * math.pi * i / n_feat for i in range(n_feat)]
+
+        # Cache for anchor-drag redraws
+        self._W = W
+        self._anchor_angles = angles[:]
+        self._class_series = class_series
+        self._class_map = class_map
+        self._class_labels_cache = class_labels
+        self._feature_names_cache = numeric_cols
+        self._n_pts = n_pts
+        self._n_total = n
+
+        self._redraw()
+
+    def _redraw(self) -> None:
+        """Reproject using current anchor angles (called after drag or full refresh)."""
+        if self._W is None:
+            return
+
+        n_feat = len(self._anchor_angles)
+        anchor_coords = np.array(
+            [[math.cos(a), math.sin(a)] for a in self._anchor_angles],
+            dtype=np.float64,
+        )
+        P = self._W @ anchor_coords
+
+        anchors_list: list[tuple[str, float]] = list(
+            zip(self._feature_names_cache, self._anchor_angles)
+        )
+
         points: list[tuple[float, float, int]] = [
             (float(P[row_i, 0]),
              float(P[row_i, 1]),
-             class_map.get(class_series[row_i], 0) if class_series else 0)
-            for row_i in range(n_pts)
+             self._class_map.get(self._class_series[row_i], 0)
+             if self._class_series else 0)
+            for row_i in range(self._n_pts)
         ]
         all_weights: list[list[float]] = [
-            W[row_i].tolist() for row_i in range(n_pts)
+            self._W[row_i].tolist() for row_i in range(self._n_pts)
         ]
 
         self._chart.set_projection(
-            points, anchors_list, class_labels,
-            weights=all_weights, feature_names=numeric_cols,
+            points, anchors_list, self._class_labels_cache,
+            weights=all_weights, feature_names=self._feature_names_cache,
         )
 
-        sampled = f" (sampled {max_pts} of {n})" if n > max_pts else ""
+        class_col = self._class_combo.currentText()
+        sampled = (f" (sampled {self.MAX_POINTS} of {self._n_total})"
+                   if self._n_total > self.MAX_POINTS else "")
         self._status_label.setText(
-            f"{n_pts} points · {n_feat} anchors{sampled}"
-            + (f" · colored by '{class_col}'" if class_col else "")
+            f"{self._n_pts} points · {n_feat} anchors{sampled}"
+            + (f" · colored by '{class_col}'"
+               if class_col and class_col != "(none)" else "")
         )

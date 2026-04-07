@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from portakal_app.data.models import DatasetHandle
+from portakal_app.ui import i18n
 from portakal_app.ui.screens.node_screen import WorkflowNodeScreenSupport
 
 
@@ -433,7 +434,7 @@ class SieveDiagramScreen(QWidget, WorkflowNodeScreenSupport):
         chart_layout.addWidget(self._chart)
         layout.addWidget(chart_box, 1)
 
-        self._status_label = QLabel("Load a dataset to visualise associations.")
+        self._status_label = QLabel(i18n.t("Load a dataset to visualise associations."))
         self._status_label.setProperty("muted", True)
         layout.addWidget(self._status_label)
 
@@ -461,33 +462,72 @@ class SieveDiagramScreen(QWidget, WorkflowNodeScreenSupport):
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _categorical_columns(self) -> list[str]:
-        """Return columns that look categorical (≤ 20 unique values or discrete type)."""
+        """Return ALL columns — numeric columns with many unique values are
+        auto-binned when building the contingency table."""
         if self._dataset is None:
             return []
+        return [col.name for col in self._dataset.domain.columns]
+
+    def _discretize(self, series_vals: list, col_name: str) -> list[str]:
+        """
+        Convert a column's values to string category labels.
+        • Non-numeric / low-cardinality numeric → str(value)
+        • High-cardinality numeric (> 15 unique) → equal-width bins (5 bins)
+          Labels like "[0.00, 2.00)", matching Orange's auto-discretize style.
+        """
+        if self._dataset is None:
+            return [str(v) if v is not None else "(missing)" for v in series_vals]
         df = self._dataset.dataframe
-        result = []
-        for col in self._dataset.domain.columns:
-            try:
-                is_cat = (
-                    not df[col.name].dtype.is_numeric()
-                    or df[col.name].n_unique() <= 20
-                )
-            except Exception:
-                is_cat = True
-            if is_cat:
-                result.append(col.name)
-        return result or [col.name for col in self._dataset.domain.columns]
+        try:
+            is_num = df[col_name].dtype.is_numeric()
+        except Exception:
+            is_num = False
+
+        if not is_num:
+            return [str(v) if v is not None else "(missing)" for v in series_vals]
+
+        # Count unique non-null values
+        non_null = [v for v in series_vals if v is not None]
+        if len(set(non_null)) <= 15:
+            # Low cardinality — keep as-is
+            return [str(int(v)) if isinstance(v, float) and v == int(v)
+                    else (str(v) if v is not None else "(missing)")
+                    for v in series_vals]
+
+        # High cardinality — 5 equal-width bins
+        try:
+            import math as _math
+            nums = [float(v) for v in non_null]
+            lo, hi = min(nums), max(nums)
+            if hi == lo:
+                return [str(v) if v is not None else "(missing)" for v in series_vals]
+            n_bins = 5
+            step = (hi - lo) / n_bins
+
+            def _label(v) -> str:
+                if v is None:
+                    return "(missing)"
+                fv = float(v)
+                b = min(int((fv - lo) / step), n_bins - 1)
+                b_lo = lo + b * step
+                b_hi = lo + (b + 1) * step
+                return f"[{b_lo:.2g}, {b_hi:.2g})"
+
+            return [_label(v) for v in series_vals]
+        except Exception:
+            return [str(v) if v is not None else "(missing)" for v in series_vals]
 
     def _build_contingency(self, row_col: str, col_col: str):
         df = self._dataset.dataframe
-        row_series = df[row_col].to_list()
-        col_series = df[col_col].to_list()
+        row_raw = df[row_col].to_list()
+        col_raw = df[col_col].to_list()
+        # Auto-bin numeric columns with many unique values
+        row_series = self._discretize(row_raw, row_col)
+        col_series = self._discretize(col_raw, col_col)
         joint: dict[str, dict[str, int]] = {}
         row_totals: dict[str, int] = {}
         col_totals: dict[str, int] = {}
-        for rv, cv in zip(row_series, col_series):
-            rk = str(rv) if rv is not None else "(missing)"
-            ck = str(cv) if cv is not None else "(missing)"
+        for rk, ck in zip(row_series, col_series):
             row_totals[rk] = row_totals.get(rk, 0) + 1
             col_totals[ck] = col_totals.get(ck, 0) + 1
             joint.setdefault(rk, {})
@@ -533,7 +573,7 @@ class SieveDiagramScreen(QWidget, WorkflowNodeScreenSupport):
     def _refresh(self) -> None:
         if self._dataset is None:
             self._chart.set_data({}, [], [])
-            self._status_label.setText("Load a dataset to visualise associations.")
+            self._status_label.setText(i18n.t("Load a dataset to visualise associations."))
             return
 
         row_col = self._row_combo.currentText()
@@ -541,7 +581,7 @@ class SieveDiagramScreen(QWidget, WorkflowNodeScreenSupport):
 
         if not row_col or not col_col or row_col == col_col:
             self._chart.set_data({}, [], [])
-            self._status_label.setText("Select two different categorical columns.")
+            self._status_label.setText(i18n.t("Select two different columns."))
             return
 
         try:
