@@ -59,10 +59,7 @@ from portakal_app.ui.screens.silhouette_plot_screen import SilhouettePlotScreen
 from portakal_app.ui.screens.pythagorean_forest_screen import PythagoreanForestScreen
 from portakal_app.ui.screens.pythagorean_tree_screen import PythagoreanTreeScreen
 from portakal_app.ui.screens.cn2_rule_viewer_screen import CN2RuleViewerScreen
-from portakal_app.ui.screens.cn2_rule_induction_screen import CN2RuleInductionScreen
 from portakal_app.ui.screens.nomogram_screen import NomogramScreen
-from portakal_app.ui.screens.logistic_regression_screen import LogisticRegressionScreen
-from portakal_app.ui.screens.scoring_sheet_screen import ScoringSheetScreen
 from portakal_app.ui.screens.scoring_sheet_viewer_screen import ScoringSheetViewerScreen
 
 
@@ -729,39 +726,6 @@ def build_widgets() -> list[WidgetDefinition]:
             "scoring-sheet-viewer",
             _inputs("Classifier", "Data"),
             _outputs("Features"),
-        ),
-        WidgetDefinition(
-            "cn2-rule-induction",
-            "model",
-            i18n.t("CN2 Rule Induction"),
-            True,
-            CN2RuleInductionScreen,
-            i18n.t("Induce a basic CN2-style rule classifier for the Rule Viewer."),
-            "cn2-rule-induction",
-            _inputs("Data"),
-            _outputs("Classifier"),
-        ),
-        WidgetDefinition(
-            "logistic-regression",
-            "model",
-            i18n.t("Logistic Regression"),
-            True,
-            LogisticRegressionScreen,
-            i18n.t("Train a basic binary logistic-regression classifier for Nomogram."),
-            "logistic-regression",
-            _inputs("Data"),
-            _outputs("Classifier"),
-        ),
-        WidgetDefinition(
-            "scoring-sheet",
-            "model",
-            i18n.t("Scoring Sheet"),
-            True,
-            ScoringSheetScreen,
-            i18n.t("Train a basic scoring-sheet classifier for Scoring Sheet Viewer."),
-            "scoring-sheet",
-            _inputs("Data"),
-            _outputs("Classifier"),
         ),
         WidgetDefinition(
             "linear-regression",

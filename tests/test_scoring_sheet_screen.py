@@ -18,7 +18,6 @@ from portakal_app.models import WorkflowPayload
 from portakal_app.scoring_sheet_artifacts import ScoringSheetClassifierArtifact
 from portakal_app.ui.catalog import build_widgets
 from portakal_app.ui.main_window import MainWindow
-from portakal_app.ui.screens.scoring_sheet_screen import ScoringSheetScreen
 from portakal_app.ui.screens.scoring_sheet_viewer_screen import ScoringSheetViewerScreen
 
 
@@ -50,9 +49,7 @@ def _build_classifier(dataset) -> ScoringSheetClassifierArtifact:
 
 def test_catalog_registers_scoring_sheet_widgets():
     widgets = {widget.id: widget for widget in build_widgets()}
-    assert "scoring-sheet" in widgets
     assert "scoring-sheet-viewer" in widgets
-    assert widgets["scoring-sheet"].output_ports[0].label == "Classifier"
     assert widgets["scoring-sheet-viewer"].input_ports[0].label == "Classifier"
     assert widgets["scoring-sheet-viewer"].input_ports[1].label == "Data"
     assert widgets["scoring-sheet-viewer"].output_ports[0].label == "Features"
@@ -63,18 +60,6 @@ def test_main_window_can_open_scoring_sheet_viewer(app):
     window._workspace.canvas.add_workflow_node("scoring-sheet-viewer")
     window._show_widget("scoring-sheet-viewer")
     assert isinstance(window._workspace.current_widget(), ScoringSheetViewerScreen)
-
-
-def test_scoring_sheet_screen_builds_classifier(app):
-    dataset = _build_dataset(GeneratedDatasetService())
-    screen = ScoringSheetScreen()
-    screen.set_input_payload(WorkflowPayload("Data", dataset))
-    app.processEvents()
-
-    classifier = screen.current_output_dataset()
-    assert isinstance(classifier, ScoringSheetClassifierArtifact)
-    assert len(classifier.rules) >= 1
-    assert classifier.class_values == ("low", "high")
 
 
 def test_scoring_sheet_viewer_populates_table_slider_and_output(app):

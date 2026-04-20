@@ -19,7 +19,6 @@ from portakal_app.models import WorkflowPayload
 from portakal_app.rule_artifacts import CN2RuleArtifact, CN2RuleClassifierArtifact, RuleConditionArtifact
 from portakal_app.ui.catalog import build_widgets
 from portakal_app.ui.main_window import MainWindow
-from portakal_app.ui.screens.cn2_rule_induction_screen import CN2RuleInductionScreen
 from portakal_app.ui.screens.cn2_rule_viewer_screen import CN2RuleViewerScreen
 
 
@@ -91,12 +90,10 @@ def _build_classifier(dataset) -> CN2RuleClassifierArtifact:
 def test_catalog_registers_cn2_widgets():
     widgets = {widget.id: widget for widget in build_widgets()}
     assert "cn2-rule-viewer" in widgets
-    assert "cn2-rule-induction" in widgets
     assert widgets["cn2-rule-viewer"].enabled is True
     assert widgets["cn2-rule-viewer"].input_ports[0].label == "Data"
     assert widgets["cn2-rule-viewer"].input_ports[1].label == "Classifier"
     assert widgets["cn2-rule-viewer"].output_channels == ("Selected Data", "Annotated Data")
-    assert widgets["cn2-rule-induction"].output_ports[0].label == "Classifier"
 
 
 def test_main_window_can_open_cn2_rule_viewer(app):
@@ -189,18 +186,6 @@ def test_cn2_rule_viewer_preserves_selection_in_compact_mode(app):
     app.processEvents()
 
     assert screen._selected_rule_rows == [1]
-
-
-def test_cn2_rule_induction_screen_builds_classifier(app):
-    dataset = _build_dataset(GeneratedDatasetService())
-    screen = CN2RuleInductionScreen()
-    screen.set_input_payload(WorkflowPayload("Data", dataset))
-    app.processEvents()
-
-    classifier = screen.current_output_dataset()
-    assert isinstance(classifier, CN2RuleClassifierArtifact)
-    assert len(classifier.rule_list) >= 2
-    assert classifier.rule_list[-1].is_default is True
 
 
 def test_cn2_induction_service_generates_classifier_for_categorical_target():
