@@ -19,8 +19,12 @@ from portakal_app.ui.catalog import build_widgets
 from portakal_app.ui.main_window import MainWindow
 from portakal_app.ui.screens.box_plot_screen import BoxPlotScreen
 from portakal_app.ui.screens.distributions_screen import DistributionsScreen
+from portakal_app.ui.screens.freeviz_screen import FreeVizScreen
 from portakal_app.ui.screens.line_plot_screen import LinePlotScreen
+from portakal_app.ui.screens.linear_projection_screen import LinearProjectionScreen
+from portakal_app.ui.screens.mosaic_display_screen import MosaicDisplayScreen
 from portakal_app.ui.screens.scatter_plot_screen import ScatterPlotScreen
+from portakal_app.ui.screens.sieve_diagram_screen import SieveDiagramScreen
 from portakal_app.ui.screens.tree_viewer_screen import TreeViewerScreen
 from portakal_app.ui.screens.violin_plot_screen import ViolinPlotScreen
 
@@ -95,6 +99,14 @@ def test_visualize_catalog_contains_orange_first_six_widgets():
     assert widgets["scatter-plot"].output_channels == ("Selected Data", "Annotated Data", "Features")
     assert widgets["scatter-plot"].input_channels == ("Data", "Data Subset", "Features")
     assert widgets["line-plot"].input_channels == ("Data", "Data Subset")
+    assert widgets["freeviz"].output_channels == ("Selected Data", "Annotated Data", "Components")
+    assert widgets["freeviz"].input_channels == ("Data", "Data Subset")
+    assert widgets["linear-projection"].output_channels == ("Selected Data", "Annotated Data", "Components")
+    assert widgets["linear-projection"].input_channels == ("Data", "Data Subset", "Projection")
+    assert widgets["mosaic-display"].output_channels == ("Selected Data", "Annotated Data")
+    assert widgets["mosaic-display"].input_channels == ("Data", "Data Subset")
+    assert widgets["sieve-diagram"].output_channels == ("Selected Data", "Annotated Data")
+    assert widgets["sieve-diagram"].input_channels == ("Data", "Features")
 
 
 @pytest.mark.parametrize(
@@ -208,6 +220,195 @@ def test_distributions_matches_orange_sidebar_structure(app, sample_dataset):
         "Exponential",
         "Kernel density",
     ]
+
+
+def test_freeviz_matches_orange_sidebar_structure(app, sample_dataset):
+    screen = FreeVizScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+
+    assert [screen._init_combo.itemText(index) for index in range(screen._init_combo.count())] == [
+        "Circular",
+        "Random",
+    ]
+    assert screen._gravity_cb.text() == "Gravity"
+    assert screen._run_btn.text() == "Start"
+    assert screen._label_only_selected_cb.text() == "Label only selection and subset"
+    assert screen._regions_cb.text() == "Show color regions"
+    assert screen._legend_cb.text() == "Show legend"
+    assert screen._reset_zoom_btn.text() == "Zoom to fit"
+
+
+def test_freeviz_outputs_components_and_selection(app, sample_dataset):
+    screen = FreeVizScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+    screen._handle_selection_changed([0, 2])
+
+    outputs = screen.current_output_datasets()
+    assert outputs is not None
+    assert outputs["Selected Data"] is not None
+    assert outputs["Selected Data"].row_count == 2
+    assert outputs["Annotated Data"] is not None
+    assert outputs["Components"] is not None
+    assert outputs["Components"].row_count == len(screen._effective_feature_names)
+
+
+def test_freeviz_rejects_missing_target(app, sample_dataset):
+    dataset = GeneratedDatasetService().build_dataset(
+        sample_dataset.dataframe,
+        dataset_id="freeviz-no-target",
+        display_name="No target",
+        file_name="freeviz-no-target.csv",
+        role_overrides={column.name: "feature" for column in sample_dataset.domain.columns},
+    )
+    screen = FreeVizScreen()
+    screen.set_input_payload(WorkflowPayload("Data", dataset))
+
+    assert "target variable" in screen._status_label.text().lower()
+
+
+def test_freeviz_warns_about_multiclass_categorical_features(app, mixed_numeric_dataset):
+    role_overrides = {column.name: "feature" for column in mixed_numeric_dataset.domain.columns}
+    role_overrides["segment"] = "target"
+    dataset = GeneratedDatasetService().build_dataset(
+        mixed_numeric_dataset.dataframe,
+        dataset_id="freeviz-mixed",
+        display_name="FreeViz mixed",
+        file_name="freeviz-mixed.csv",
+        role_overrides=role_overrides,
+    )
+    screen = FreeVizScreen()
+    screen.set_input_payload(WorkflowPayload("Data", dataset))
+
+    assert "categorical features" in screen._warning_label.text().lower()
+    assert "group" in screen._warning_label.text().lower()
+
+
+def test_linear_projection_matches_orange_sidebar_structure(app, sample_dataset):
+    screen = LinearProjectionScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+
+    assert screen._feature_filter_edit.placeholderText() == "Filter..."
+    assert screen._suggest_btn.text() == "Suggest Features"
+    assert screen._circular_rb.text() == "Circular Placement"
+    assert screen._lda_rb.text() == "Linear Discriminant Analysis"
+    assert screen._pca_rb.text() == "Principal Component Analysis"
+    assert screen._label_selected_only_cb.text() == "Label only selected points"
+    assert screen._show_regions_cb.text() == "Show color regions"
+    assert screen._show_legend_cb.text() == "Show legend"
+    assert screen._zoom_fit_btn.text() == "Zoom to fit"
+
+
+def test_linear_projection_outputs_components_and_selection(app, sample_dataset):
+    screen = LinearProjectionScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+    screen._handle_selection_changed([0, 2])
+
+    outputs = screen.current_output_datasets()
+    assert outputs is not None
+    assert outputs["Selected Data"] is not None
+    assert outputs["Selected Data"].row_count == 2
+    assert outputs["Annotated Data"] is not None
+    assert outputs["Components"] is not None
+    assert outputs["Components"].row_count >= 3
+
+
+def test_linear_projection_disables_lda_for_non_categorical_target(app, sample_dataset):
+    role_overrides = {column.name: "feature" for column in sample_dataset.domain.columns}
+    role_overrides["petal_width"] = "target"
+    dataset = GeneratedDatasetService().build_dataset(
+        sample_dataset.dataframe.drop("species"),
+        dataset_id="linproj-numeric-target",
+        display_name="Numeric target",
+        file_name="linproj-numeric-target.csv",
+        role_overrides={name: role for name, role in role_overrides.items() if name != "species"},
+    )
+    screen = LinearProjectionScreen()
+    screen.set_input_payload(WorkflowPayload("Data", dataset))
+
+    assert screen._lda_rb.isEnabled() is False
+    assert "not categorical" in screen._placement_info_label.text().lower()
+
+
+def test_linear_projection_accepts_projection_input(app, sample_dataset):
+    screen = LinearProjectionScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+    components_before = screen.current_output_datasets()["Components"]
+    assert components_before is not None
+
+    screen.set_input_payload(WorkflowPayload("Projection", components_before))
+    components_after = screen.current_output_datasets()["Components"]
+    assert components_after is not None
+    assert components_after.row_count == components_before.row_count
+
+
+def test_mosaic_display_matches_orange_sidebar_structure(app, sample_dataset):
+    screen = MosaicDisplayScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+
+    assert screen._variables_box.title() == "Variables"
+    assert screen._vizrank_btn.text() == "Find Informative Mosaics"
+    assert screen._interior_box.title() == "Interior Coloring"
+    assert screen._color_combo.itemText(0) == "(Pearson residuals)"
+    assert screen._compare_total_cb.text() == "Compare with total"
+
+
+def test_mosaic_display_outputs_selection_and_annotation(app, sample_dataset):
+    screen = MosaicDisplayScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+    screen._handle_selection_changed([0, 2, 4])
+
+    outputs = screen.current_output_datasets()
+    assert outputs is not None
+    assert outputs["Selected Data"] is not None
+    assert outputs["Selected Data"].row_count == 3
+    assert outputs["Annotated Data"] is not None
+
+
+def test_mosaic_display_accepts_subset_input(app, sample_dataset):
+    subset = GeneratedDatasetService().build_dataset(
+        sample_dataset.dataframe.head(2),
+        dataset_id=f"{sample_dataset.dataset_id}-subset",
+        display_name=f"{sample_dataset.display_name} subset",
+        file_name="subset.csv",
+        role_overrides={column.name: column.role for column in sample_dataset.domain.columns},
+    )
+    screen = MosaicDisplayScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+    screen.set_input_payload(WorkflowPayload("Data Subset", subset))
+
+    assert screen._subset is not None
+    assert screen._compare_total_cb.isEnabled() is True
+
+
+def test_sieve_diagram_matches_orange_structure(app, sample_dataset):
+    screen = SieveDiagramScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+
+    assert screen._best_btn.text() == "Score Combinations"
+    assert screen._row_combo.count() >= 2
+    assert screen._col_combo.count() >= 2
+
+
+def test_sieve_diagram_outputs_selection_and_annotation(app, sample_dataset):
+    screen = SieveDiagramScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+    screen._handle_selection_changed([0, 2])
+
+    outputs = screen.current_output_datasets()
+    assert outputs is not None
+    assert outputs["Selected Data"] is not None
+    assert outputs["Selected Data"].row_count == 2
+    assert outputs["Annotated Data"] is not None
+
+
+def test_sieve_diagram_accepts_features_input(app, sample_dataset):
+    screen = SieveDiagramScreen()
+    screen.set_input_payload(WorkflowPayload("Data", sample_dataset))
+    screen.set_input_payload(WorkflowPayload("Features", ("species", "petal_length")))
+
+    assert screen._attr_box.isEnabled() is False
+    assert screen._row_combo.currentText() == "species"
+    assert screen._col_combo.currentText() == "petal_length"
 
 
 def test_box_plot_discrete_mode_uses_stacked_group_rows(app, mixed_numeric_dataset):

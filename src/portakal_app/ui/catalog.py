@@ -583,7 +583,9 @@ def build_widgets() -> list[WidgetDefinition]:
             i18n.t("Association between two categorical variables."),
             "sieve",
             _inputs("Data"),
-            (),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+            input_channels=("Data", "Features"),
         ),
         WidgetDefinition(
             "mosaic-display",
@@ -594,7 +596,9 @@ def build_widgets() -> list[WidgetDefinition]:
             i18n.t("Proportional mosaic plot for two categorical variables."),
             "mosaic",
             _inputs("Data"),
-            (),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data"),
+            input_channels=("Data", "Data Subset"),
         ),
         WidgetDefinition(
             "freeviz",
@@ -605,7 +609,9 @@ def build_widgets() -> list[WidgetDefinition]:
             i18n.t("Force-directed linear projection onto 2D."),
             "freeviz",
             _inputs("Data"),
-            (),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data", "Components"),
+            input_channels=("Data", "Data Subset"),
         ),
         WidgetDefinition(
             "linear-projection",
@@ -616,7 +622,9 @@ def build_widgets() -> list[WidgetDefinition]:
             i18n.t("Scatter plot of two user-selected numeric axes."),
             "linearprojection",
             _inputs("Data"),
-            (),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Annotated Data", "Components"),
+            input_channels=("Data", "Data Subset", "Projection"),
         ),
         WidgetDefinition(
             "radviz",

@@ -37,6 +37,7 @@ WORKFLOW_PORT_COMPATIBILITY_OVERRIDES = {
     ("Data", "Extra Data"): frozenset({"merge-data"}),
     ("Data", "Template Data"): frozenset({"apply-domain"}),
     ("Model", "Tree"): frozenset({"tree-viewer"}),
+    ("Components", "Projection"): frozenset({"linear-projection"}),
 }
 
 
