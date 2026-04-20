@@ -584,8 +584,9 @@ class MainWindow(QMainWindow):
             screen.set_paint_data_service(self._paint_data_service)
         if isinstance(screen, ColorScreen):
             screen.set_color_settings_service(self._color_settings_service)
-        if isinstance(screen, SaveDataScreen):
-            screen.set_save_data_service(self._save_data_service)
+        save_data_service_setter = getattr(screen, "set_save_data_service", None)
+        if callable(save_data_service_setter):
+            save_data_service_setter(self._save_data_service)
         output_handler = getattr(screen, "on_output_changed", None)
         if callable(output_handler):
             output_handler(lambda node_id=node_id: self._handle_node_output_changed(node_id))
@@ -868,20 +869,45 @@ class MainWindow(QMainWindow):
                         input_handler(None)
                         if resolved_labeled:
                             for label, payload in resolved_labeled:
-                                input_handler(WorkflowPayload(label, payload.dataset))
+                                input_handler(payload.with_port_label(label))
                         else:
                             for port in definition.input_ports:
                                 nxt = resolved_inputs.get(port.id)
                                 if nxt is not None:
-                                    input_handler(WorkflowPayload(port.label, nxt.dataset))
+                                    input_handler(nxt.with_port_label(port.label))
 
                 output_dataset = None
+                output_payload = None
+                multi_payload_provider = getattr(runtime.screen, "current_output_payloads", None)
                 multi_provider = getattr(runtime.screen, "current_output_datasets", None)
+                multi_payloads: dict[str, WorkflowPayload | None] | None = None
                 multi_outputs: dict[str, DatasetHandle | None] | None = None
+                if callable(multi_payload_provider):
+                    multi_payloads = multi_payload_provider()
                 if callable(multi_provider):
                     multi_outputs = multi_provider()
 
-                if multi_outputs is not None and definition.output_channels:
+                if multi_payloads is not None and definition.output_channels:
+                    old_payloads = dict(runtime.output_payloads)
+                    runtime.output_payloads = {}
+                    first_payload = None
+                    for channel_name in definition.output_channels:
+                        payload = multi_payloads.get(channel_name)
+                        if payload is not None and payload.port_label != channel_name:
+                            payload = payload.with_port_label(channel_name)
+                        old_p = old_payloads.get(channel_name)
+                        if (
+                            payload is not None
+                            and old_p is not None
+                            and old_p.value is payload.value
+                            and old_p.port_label == payload.port_label
+                        ):
+                            payload = old_p
+                        runtime.output_payloads[channel_name] = payload
+                        if first_payload is None and payload is not None:
+                            first_payload = payload
+                    runtime.output_payload = first_payload
+                elif multi_outputs is not None and definition.output_channels:
                     old_payloads = dict(runtime.output_payloads)
                     runtime.output_payloads = {}
                     first_payload = None
@@ -900,11 +926,27 @@ class MainWindow(QMainWindow):
                     runtime.output_payload = first_payload
                 else:
                     output_provider = getattr(runtime.screen, "current_output_dataset", None)
+                    payload_provider = getattr(runtime.screen, "current_output_payload", None)
+                    if callable(payload_provider):
+                        output_payload = payload_provider()
                     if callable(output_provider):
                         output_dataset = output_provider()
-                    if definition.output_ports and output_dataset is not None:
+                    if definition.output_ports and output_payload is not None:
+                        if output_payload.port_label != definition.output_ports[0].label:
+                            output_payload = output_payload.with_port_label(definition.output_ports[0].label)
                         old_payload = runtime.output_payload
-                        if old_payload is not None and old_payload.dataset is output_dataset:
+                        if (
+                            old_payload is not None
+                            and old_payload.value is output_payload.value
+                            and old_payload.port_label == output_payload.port_label
+                        ):
+                            pass
+                        else:
+                            runtime.output_payload = output_payload
+                        runtime.output_payloads = {}
+                    elif definition.output_ports and output_dataset is not None:
+                        old_payload = runtime.output_payload
+                        if old_payload is not None and old_payload.value is output_dataset:
                             pass  # Same dataset object, keep existing payload
                         else:
                             runtime.output_payload = WorkflowPayload(definition.output_ports[0].label, output_dataset)
@@ -921,10 +963,10 @@ class MainWindow(QMainWindow):
         active_payload = None
         for node_id in ordered_node_ids:
             runtime = self._node_runtimes.get(node_id)
-            if runtime is None or runtime.output_payload is None:
+            if runtime is None or runtime.output_payload is None or runtime.output_payload.dataset is None:
                 continue
             active_payload = runtime.output_payload
-        if active_payload is None:
+        if active_payload is None or not isinstance(active_payload.dataset, DatasetHandle):
             self._state_store.update(current_dataset=None, current_dataset_id=None, current_dataset_path=None)
             return
         dataset = active_payload.dataset
@@ -936,6 +978,14 @@ class MainWindow(QMainWindow):
 
     def _dataset_preview_snapshot(self, payload: WorkflowPayload) -> dict[str, object]:
         dataset = payload.dataset
+        if dataset is None:
+            value = payload.value
+            label = getattr(value, "display_name", value.__class__.__name__ if value is not None else "non-tabular payload")
+            return {
+                "summary": f"{payload.port_label}: {label}\nNo tabular preview available for this output.",
+                "headers": [],
+                "rows": [],
+            }
         headers = list(dataset.dataframe.columns)
         rows = [
             ["" if value is None else str(value) for value in row]
@@ -959,7 +1009,14 @@ class MainWindow(QMainWindow):
             return {"summary": "No preview available.", "headers": [], "rows": []}
         if runtime.output_payload is not None:
             return self._dataset_preview_snapshot(runtime.output_payload)
-        input_payload = next((payload for payload in runtime.input_payloads.values() if payload is not None), None)
+        input_payload = next(
+            (
+                payload
+                for payload in runtime.input_payloads.values()
+                if payload is not None and payload.value is not None
+            ),
+            None,
+        )
         if input_payload is not None:
             return self._dataset_preview_snapshot(input_payload)
         preview_provider = getattr(runtime.screen, "data_preview_snapshot", None)

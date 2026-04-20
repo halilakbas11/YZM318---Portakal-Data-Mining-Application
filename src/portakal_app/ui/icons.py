@@ -383,6 +383,275 @@ def _make_custom_icon(icon_name: str) -> QIcon | None:
         painter.drawLine(QPointF(9, 16), QPointF(15, 16))
         painter.drawLine(QPointF(9, 18), QPointF(15, 18))
 
+    elif icon_name == "barplot":
+        # Three vertical bars of different heights
+        painter.setBrush(QColor("#e07020"))
+        painter.drawRect(QRectF(3, 14, 4, 7))
+        painter.setBrush(QColor("#e07020").lighter(130))
+        painter.drawRect(QRectF(10, 8, 4, 13))
+        painter.setBrush(QColor("#e07020").lighter(160))
+        painter.drawRect(QRectF(17, 4, 4, 17))
+        painter.setPen(QPen(QColor("#9b9488"), 1))
+        painter.drawLine(QPointF(3, 21), QPointF(21, 21))
+
+    elif icon_name == "sieve":
+        # Grid with varying fill densities
+        for row in range(3):
+            for col in range(3):
+                size = 3 + (row + col) % 3
+                offset = (5 - size) // 2
+                x = 3 + col * 6 + offset
+                y = 3 + row * 6 + offset
+                painter.setBrush(QColor("#e07020"))
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawRect(QRectF(x, y, size, size))
+        painter.setPen(QPen(QColor("#9b9488"), 1))
+        painter.drawRect(QRectF(3, 3, 18, 18))
+        for i in range(1, 3):
+            painter.drawLine(QPointF(3 + i * 6, 3), QPointF(3 + i * 6, 21))
+            painter.drawLine(QPointF(3, 3 + i * 6), QPointF(21, 3 + i * 6))
+
+    elif icon_name == "mosaic":
+        # Proportional rectangles (mosaic layout)
+        painter.setBrush(QColor("#e07020"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(QRectF(3, 3, 8, 18))
+        painter.setBrush(QColor("#3b82f6"))
+        painter.drawRect(QRectF(12, 3, 10, 10))
+        painter.setBrush(QColor("#22c55e"))
+        painter.drawRect(QRectF(12, 14, 10, 7))
+        painter.setPen(QPen(QColor("#fffdf9"), 1))
+        painter.drawLine(QPointF(11, 3), QPointF(11, 21))
+
+    elif icon_name == "freeviz":
+        # Circle with lines radiating outward and dots
+        painter.setPen(QPen(QColor("#d0ccc3"), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(QRectF(4, 4, 16, 16))
+        painter.setPen(QPen(QColor("#e07020"), 1.5))
+        for angle_deg in [0, 60, 120, 180, 240, 300]:
+            import math as _math
+            rad = _math.radians(angle_deg)
+            cx, cy = 12.0, 12.0
+            ex = cx + 8 * _math.cos(rad)
+            ey = cy - 8 * _math.sin(rad)
+            painter.drawLine(QPointF(cx, cy), QPointF(ex, ey))
+        painter.setBrush(QColor("#e07020"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(QRectF(10, 10, 4, 4))
+        painter.setBrush(QColor("#3b82f6"))
+        painter.drawEllipse(QRectF(7, 7, 3, 3))
+        painter.setBrush(QColor("#22c55e"))
+        painter.drawEllipse(QRectF(13, 8, 3, 3))
+
+    elif icon_name == "linearprojection":
+        # Scatter of dots with a trend line
+        dots = [(5, 17), (7, 14), (9, 13), (11, 11), (13, 9), (15, 8), (17, 6)]
+        painter.setBrush(QColor("#3b82f6"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        for dx, dy in dots:
+            painter.drawEllipse(QRectF(dx - 1.5, dy - 1.5, 3, 3))
+        painter.setPen(QPen(QColor("#e07020"), 1.8))
+        painter.drawLine(QPointF(4, 18), QPointF(18, 5))
+
+    elif icon_name == "radviz":
+        # Circle with equally spaced anchor lines and scattered dots inside
+        painter.setPen(QPen(QColor("#d0ccc3"), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(QRectF(3, 3, 18, 18))
+        painter.setPen(QPen(QColor("#e07020"), 1.5))
+        for angle_deg in [90, 210, 330]:
+            import math as _math
+            rad = _math.radians(angle_deg)
+            cx, cy = 12.0, 12.0
+            ex = cx + 9 * _math.cos(rad)
+            ey = cy - 9 * _math.sin(rad)
+            painter.drawLine(QPointF(cx, cy), QPointF(ex, ey))
+        inner_dots = [(10, 11), (12, 9), (11, 13), (13, 11)]
+        for ci, (dx, dy) in enumerate(inner_dots):
+            colors = [QColor("#e07020"), QColor("#3b82f6"), QColor("#22c55e"), QColor("#a855f7")]
+            painter.setBrush(colors[ci])
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(QRectF(dx - 1.5, dy - 1.5, 3, 3))
+
+    elif icon_name == "heatmap":
+        # 3x3 grid with gradient-coloured cells
+        colors_grid = [
+            [QColor("#e07020"), QColor("#f5c89a"), QColor("#c8ddf4")],
+            [QColor("#f5c89a"), QColor("#e8e5df"), QColor("#91b4d8")],
+            [QColor("#c8ddf4"), QColor("#91b4d8"), QColor("#3b82f6")],
+        ]
+        cell = 6
+        for row in range(3):
+            for col in range(3):
+                painter.setBrush(colors_grid[row][col])
+                painter.setPen(QPen(QColor("#fffdf9"), 0.5))
+                painter.drawRect(QRectF(3 + col * cell, 3 + row * cell, cell, cell))
+
+    elif icon_name == "venn":
+        # Three overlapping circles
+        painter.setBrush(QColor(224, 112, 32, 70))
+        painter.setPen(QPen(QColor("#5a4a36"), 1.4))
+        painter.drawEllipse(QRectF(4, 6, 10, 10))
+        painter.setBrush(QColor(59, 130, 246, 70))
+        painter.drawEllipse(QRectF(10, 6, 10, 10))
+        painter.setBrush(QColor(34, 197, 94, 70))
+        painter.drawEllipse(QRectF(7, 11, 10, 10))
+
+    elif icon_name == "silhouette":
+        # Horizontal silhouette bars around a zero axis
+        painter.setPen(QPen(QColor("#b8b0a5"), 1))
+        painter.drawLine(QPointF(11.5, 4), QPointF(11.5, 20))
+        bars = [
+            (3.0, 6.0, 8.5, QColor("#4e79a7")),
+            (6.0, 10.0, 5.5, QColor("#f28e2b")),
+            (2.5, 14.0, 9.0, QColor("#59a14f")),
+            (8.0, 18.0, 3.5, QColor("#e15759")),
+        ]
+        for x, y, width, color in bars:
+            painter.setBrush(color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(QRectF(x, y, width, 2.5))
+
+    elif icon_name == "pythagorean-tree":
+        # Root square with stacked child squares
+        painter.setPen(QPen(QColor("#4a4033"), 1.6))
+        painter.setBrush(QColor(224, 112, 32, 70))
+        painter.drawRect(QRectF(3, 13, 7, 7))
+        painter.setBrush(QColor(59, 130, 246, 55))
+        painter.save()
+        painter.translate(10.5, 11.5)
+        painter.rotate(-28)
+        painter.drawRect(QRectF(-2.8, -2.8, 5.6, 5.6))
+        painter.restore()
+        painter.setBrush(QColor(34, 197, 94, 55))
+        painter.save()
+        painter.translate(15.8, 8.0)
+        painter.rotate(-52)
+        painter.drawRect(QRectF(-2.1, -2.1, 4.2, 4.2))
+        painter.restore()
+        painter.setBrush(QColor(225, 87, 89, 45))
+        painter.save()
+        painter.translate(19.0, 5.0)
+        painter.rotate(-72)
+        painter.drawRect(QRectF(-1.7, -1.7, 3.4, 3.4))
+        painter.restore()
+
+    elif icon_name == "pythagorean-forest":
+        # Grid of mini pythagorean trees
+        painter.setPen(QPen(QColor("#4a4033"), 1.2))
+        cells = [(3, 11), (11, 11), (7, 4), (15, 4)]
+        colors = [QColor(224, 112, 32, 65), QColor(59, 130, 246, 55), QColor(34, 197, 94, 55), QColor(225, 87, 89, 45)]
+        for (x, y), color in zip(cells, colors):
+            painter.setBrush(color)
+            painter.drawRect(QRectF(x, y, 4.5, 4.5))
+            painter.save()
+            painter.translate(x + 4.4, y - 1.0)
+            painter.rotate(-35)
+            painter.drawRect(QRectF(-1.8, -1.8, 3.0, 3.0))
+            painter.restore()
+
+    elif icon_name == "cn2-rule-viewer":
+        painter.setPen(QPen(QColor("#4a4033"), 1.2))
+        painter.drawRect(QRectF(3, 4, 18, 16))
+        painter.drawLine(QPointF(3, 9), QPointF(21, 9))
+        painter.drawLine(QPointF(3, 14), QPointF(21, 14))
+        painter.setPen(QPen(QColor("#e07020"), 1.5))
+        painter.drawLine(QPointF(5, 7), QPointF(10, 7))
+        painter.drawLine(QPointF(13, 7), QPointF(17, 7))
+        painter.drawLine(QPointF(15, 5), QPointF(17, 7))
+        painter.drawLine(QPointF(15, 9), QPointF(17, 7))
+        painter.drawLine(QPointF(5, 12), QPointF(10, 12))
+        painter.drawLine(QPointF(13, 12), QPointF(18, 12))
+        painter.drawLine(QPointF(16, 10), QPointF(18, 12))
+        painter.drawLine(QPointF(16, 14), QPointF(18, 12))
+        painter.setBrush(QColor("#4e79a7"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(QRectF(5, 16, 4, 2.5))
+        painter.setBrush(QColor("#f28e2b"))
+        painter.drawRect(QRectF(9, 16, 5, 2.5))
+        painter.setBrush(QColor("#59a14f"))
+        painter.drawRect(QRectF(14, 16, 4, 2.5))
+
+    elif icon_name == "cn2-rule-induction":
+        painter.setPen(QPen(QColor("#4a4033"), 1.4))
+        painter.drawEllipse(QRectF(4, 4, 7, 7))
+        painter.drawEllipse(QRectF(13, 4, 7, 7))
+        painter.drawEllipse(QRectF(8.5, 13, 7, 7))
+        painter.drawLine(QPointF(11, 11), QPointF(11, 13))
+        painter.drawLine(QPointF(8, 17), QPointF(16, 17))
+        painter.setPen(QPen(QColor("#e07020"), 1.5))
+        painter.drawLine(QPointF(10, 6), QPointF(13, 6))
+        painter.drawLine(QPointF(12, 5), QPointF(13, 6))
+        painter.drawLine(QPointF(12, 7), QPointF(13, 6))
+        painter.drawLine(QPointF(15, 11), QPointF(13, 14))
+        painter.drawLine(QPointF(13, 14), QPointF(11, 16))
+
+    elif icon_name == "nomogram":
+        painter.setPen(QPen(QColor("#4a4033"), 1.2))
+        painter.drawLine(QPointF(3, 6), QPointF(21, 6))
+        painter.drawLine(QPointF(3, 12), QPointF(21, 12))
+        painter.drawLine(QPointF(3, 18), QPointF(21, 18))
+        painter.setPen(QPen(QColor("#d0ccc3"), 1.0))
+        for x in (6, 11, 16):
+            painter.drawLine(QPointF(x, 4), QPointF(x, 8))
+            painter.drawLine(QPointF(x, 10), QPointF(x, 14))
+            painter.drawLine(QPointF(x, 16), QPointF(x, 20))
+        painter.setBrush(QColor("#4e79a7"))
+        painter.setPen(QPen(QColor("white"), 0.8))
+        painter.drawEllipse(QRectF(9.5, 3.5, 3.5, 3.5))
+        painter.drawEllipse(QRectF(14.5, 9.5, 3.5, 3.5))
+        painter.setBrush(QColor("#59a14f"))
+        painter.drawEllipse(QRectF(7.5, 15.5, 3.5, 3.5))
+
+    elif icon_name == "logistic-regression":
+        painter.setPen(QPen(QColor("#4a4033"), 1.2))
+        painter.drawLine(QPointF(3, 20), QPointF(3, 4))
+        painter.drawLine(QPointF(3, 20), QPointF(21, 20))
+        path = QPainterPath()
+        path.moveTo(4, 18)
+        path.cubicTo(QPointF(8, 18), QPointF(10, 14), QPointF(12, 12))
+        path.cubicTo(QPointF(15, 8), QPointF(17, 5), QPointF(21, 5))
+        painter.setPen(QPen(QColor("#e07020"), 1.8))
+        painter.drawPath(path)
+        painter.setBrush(QColor("#4e79a7"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(QRectF(5, 16, 3, 3))
+        painter.drawEllipse(QRectF(10, 12, 3, 3))
+        painter.drawEllipse(QRectF(15, 7, 3, 3))
+
+    elif icon_name == "scoring-sheet":
+        painter.setPen(QPen(QColor("#4a4033"), 1.2))
+        painter.drawRect(QRectF(4, 3, 16, 18))
+        painter.drawLine(QPointF(8, 7), QPointF(16, 7))
+        painter.drawLine(QPointF(8, 11), QPointF(16, 11))
+        painter.drawLine(QPointF(8, 15), QPointF(16, 15))
+        painter.setBrush(QColor("#e07020"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(QRectF(6, 6, 1.8, 1.8))
+        painter.drawRect(QRectF(6, 10, 1.8, 1.8))
+        painter.drawRect(QRectF(6, 14, 1.8, 1.8))
+        painter.setPen(QPen(QColor("#59a14f"), 1.6))
+        painter.drawLine(QPointF(14, 18), QPointF(18, 18))
+        painter.drawLine(QPointF(18, 18), QPointF(18, 14))
+
+    elif icon_name == "scoring-sheet-viewer":
+        painter.setPen(QPen(QColor("#4a4033"), 1.2))
+        painter.drawRect(QRectF(3, 4, 12, 14))
+        painter.drawLine(QPointF(3, 9), QPointF(15, 9))
+        painter.drawLine(QPointF(9, 4), QPointF(9, 18))
+        painter.setBrush(QColor("#e07020"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(QRectF(4.5, 10.5, 3, 3))
+        painter.drawRect(QRectF(4.5, 14.5, 3, 3))
+        painter.setPen(QPen(QColor("#4e79a7"), 1.6))
+        painter.drawLine(QPointF(16, 7), QPointF(21, 7))
+        painter.drawLine(QPointF(16, 12), QPointF(21, 12))
+        painter.drawLine(QPointF(16, 17), QPointF(21, 17))
+        painter.setBrush(QColor("#59a14f"))
+        painter.setPen(QPen(QColor("white"), 0.8))
+        painter.drawEllipse(QRectF(18.2, 10.2, 3.6, 3.6))
+
     else:
         drawn = False
 

@@ -155,8 +155,8 @@ class PythonScriptService:
 
             if out_obj is not None and out_df is None:
                 error_msg = (
-                    f"out_data type '{type(out_obj).__name__}' could not be "
-                    f"converted to a DataFrame.\n"
+                    f"out_data must be a polars or orange DataFrame. "
+                    f"Received type '{type(out_obj).__name__}'.\n"
                     f"Supported types: polars.DataFrame, pandas.DataFrame, "
                     f"Orange.data.Table, dict, list[dict]"
                 )

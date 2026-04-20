@@ -2,6 +2,15 @@ from __future__ import annotations
 
 import sys
 
+# Import the scientific stack before PySide6.
+# On some Python 3.12 / PySide6 environments, importing PySide6 first can
+# break later sklearn -> pandas -> dateutil imports through shiboken's
+# feature loader.
+try:
+    import sklearn  # noqa: F401
+except Exception:
+    pass
+
 from PySide6.QtWidgets import QApplication
 
 from portakal_app.ui.main_window import MainWindow

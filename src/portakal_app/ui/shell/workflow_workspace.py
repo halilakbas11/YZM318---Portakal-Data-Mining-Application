@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSizeGrip,
     QTableWidget,
     QTableWidgetItem,
     QToolButton,
@@ -415,6 +416,51 @@ class WidgetScreenDialog(QDialog):
         "min_height": 260,
         "scroll": False,
     }
+    WIDE_VISUALIZE_POPUP_PROFILE = {
+        "base_width": 1100,
+        "base_height": 760,
+        "width_padding": 80,
+        "height_padding": 120,
+        "min_width": 860,
+        "min_height": 560,
+        "scroll": True,
+    }
+    SCATTER_PLOT_POPUP_PROFILE = {
+        "base_width": 1210,
+        "base_height": 860,
+        "width_padding": 96,
+        "height_padding": 132,
+        "min_width": 980,
+        "min_height": 660,
+        "scroll": False,
+    }
+    BOX_PLOT_POPUP_PROFILE = {
+        "base_width": 1100,
+        "base_height": 820,
+        "width_padding": 88,
+        "height_padding": 128,
+        "min_width": 900,
+        "min_height": 620,
+        "scroll": False,
+    }
+    VIOLIN_PLOT_POPUP_PROFILE = {
+        "base_width": 1100,
+        "base_height": 820,
+        "width_padding": 88,
+        "height_padding": 128,
+        "min_width": 900,
+        "min_height": 620,
+        "scroll": False,
+    }
+    TREE_VIEWER_POPUP_PROFILE = {
+        "base_width": 1180,
+        "base_height": 860,
+        "width_padding": 92,
+        "height_padding": 132,
+        "min_width": 980,
+        "min_height": 680,
+        "scroll": False,
+    }
 
     def __init__(
         self,
@@ -462,8 +508,12 @@ class WidgetScreenDialog(QDialog):
         layout.addWidget(self._drag_handle)
         self._scroll_area = None
         if not bool(popup_profile["scroll"]):
-            screen.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-            layout.addWidget(screen, 0)
+            if widget_definition.id == "save-data":
+                screen.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+                layout.addWidget(screen, 0)
+            else:
+                screen.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+                layout.addWidget(screen, 1)
         else:
             screen.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
             self._scroll_area = QScrollArea(self._surface)
@@ -476,6 +526,13 @@ class WidgetScreenDialog(QDialog):
 
         footer = QHBoxLayout()
         footer.setSpacing(8)
+
+        self._save_export_button = None
+        if callable(getattr(self._screen, "save_export_dataset", None)):
+            self._save_export_button = QPushButton(i18n.t("Save"))
+            self._save_export_button.setProperty("secondary", True)
+            self._save_export_button.clicked.connect(getattr(self._screen, "save_export_dataset"))
+            footer.addWidget(self._save_export_button)
 
         self._menu_button = self._make_footer_tool("menu", i18n.t("Open widget menu"))
         self._menu_button.clicked.connect(self._show_menu)
@@ -501,6 +558,10 @@ class WidgetScreenDialog(QDialog):
 
         footer.addStretch(1)
 
+        self._size_grip = QSizeGrip(self._surface)
+        self._size_grip.setToolTip(i18n.t("Resize"))
+        footer.addWidget(self._size_grip, 0, Qt.AlignmentFlag.AlignBottom)
+
         self._close_button = QPushButton(i18n.t("Close"))
         self._close_button.setObjectName("widgetPopupCloseButton")
         self._close_button.clicked.connect(self.hide)
@@ -510,6 +571,24 @@ class WidgetScreenDialog(QDialog):
     def _popup_profile_for_widget(self, widget_id: str) -> dict[str, int | bool]:
         if widget_id == "save-data":
             return dict(self.SAVE_DATA_POPUP_PROFILE)
+        if widget_id == "scatter-plot":
+            return dict(self.SCATTER_PLOT_POPUP_PROFILE)
+        if widget_id == "box-plot":
+            return dict(self.BOX_PLOT_POPUP_PROFILE)
+        if widget_id == "violin-plot":
+            return dict(self.VIOLIN_PLOT_POPUP_PROFILE)
+        if widget_id == "distributions":
+            return dict(self.VIOLIN_PLOT_POPUP_PROFILE)
+        if widget_id == "tree-viewer":
+            return dict(self.TREE_VIEWER_POPUP_PROFILE)
+        if widget_id in {
+            "line-plot",
+            "freeviz",
+            "linear-projection",
+            "radviz",
+            "heat-map",
+        }:
+            return dict(self.WIDE_VISUALIZE_POPUP_PROFILE)
         return dict(self.DEFAULT_POPUP_PROFILE)
 
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -518,6 +597,9 @@ class WidgetScreenDialog(QDialog):
 
     def refresh_footer(self) -> None:
         self._status_label.setText(self._footer_status_text())
+        if self._save_export_button is not None:
+            can_save_provider = getattr(self._screen, "can_save_export_dataset", None)
+            self._save_export_button.setEnabled(bool(can_save_provider()) if callable(can_save_provider) else True)
         if callable(self._data_preview_enabled_provider):
             enabled = bool(self._data_preview_enabled_provider())
             self._data_button.setEnabled(enabled)
@@ -526,6 +608,8 @@ class WidgetScreenDialog(QDialog):
         self._widget_definition = widget_definition
 
     def refresh_translations(self) -> None:
+        if self._save_export_button is not None:
+            self._save_export_button.setText(i18n.t("Save"))
         self._menu_button.setToolTip(i18n.t("Open widget menu"))
         self._help_button.setToolTip(i18n.t("Help"))
         self._data_button.setToolTip(i18n.t("Open data preview"))
@@ -584,6 +668,12 @@ class WidgetScreenDialog(QDialog):
             apply_action = submenu.addAction("Apply")
             apply_action.triggered.connect(lambda: getattr(self._screen, "_apply_button").click())
             apply_action.setEnabled(getattr(self._screen, "_apply_button").isEnabled())
+            actions_added = True
+
+        if self._save_export_button is not None:
+            save_export_action = submenu.addAction(i18n.t("Save"))
+            save_export_action.triggered.connect(self._save_export_button.click)
+            save_export_action.setEnabled(self._save_export_button.isEnabled())
             actions_added = True
 
         if hasattr(self._screen, "_reset_button"):
@@ -1151,7 +1241,7 @@ class WorkflowWorkspace(QFrame):
         target_width = max(min_width, width)
         target_height = max(min_height, height)
         dialog.setMinimumSize(min_width, min_height)
-        dialog.setMaximumSize(target_width, target_height)
+        dialog.setMaximumSize(max(min_width, target_width_limit), max(min_height, target_height_limit))
         dialog.resize(target_width, target_height)
 
     def _dialog_target_area(self) -> QRect:
