@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from itertools import chain
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QRectF, QLineF
+from PySide6.QtGui import QPainter, QColor, QFont, QFontMetrics, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -12,9 +13,11 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QSlider,
     QVBoxLayout,
+    QWidget,
 )
 
 from portakal_app.data.services.sklearn_learner_service import SklearnLearnerService
+from portakal_app.ui import i18n
 from portakal_app.ui.screens.model_base import ModelScreenBase
 
 
@@ -34,6 +37,70 @@ _OLS, _RIDGE, _LASSO, _ELASTIC = 0, 1, 2, 3
 _REG_TYPES = ["No regularization", "Ridge regression (L2)", "Lasso regression (L1)", "Elastic net regression"]
 
 
+class RegressionWeightsPlot(QWidget):
+    """Bar chart for Linear Regression weights."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setMinimumHeight(350)
+        self._weights: list[tuple[str, float]] = []
+
+    def set_data(self, weights: list[tuple[str, float]]) -> None:
+        self._weights = sorted(weights, key=lambda x: abs(x[1]), reverse=True)[:25]
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        if not self._weights:
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w, h = self.width(), self.height()
+        margin_x = 100
+        margin_y = 30
+        
+        center_x = w / 2
+        plot_w = w - margin_x * 2
+        plot_h = h - margin_y * 2
+        
+        bar_spacing = plot_h / len(self._weights)
+        bar_h = min(18, bar_spacing - 4)
+        
+        max_val = max(abs(x[1]) for x in self._weights) if self._weights else 1.0
+        
+        painter.setFont(QFont("Inter", 8))
+        
+        # Center line
+        painter.setPen(QPen(QColor("#94a3b8"), 1, Qt.PenStyle.DashLine))
+        painter.drawLine(QLineF(center_x, margin_y, center_x, h - margin_y))
+
+        for i, (name, val) in enumerate(self._weights):
+            y = margin_y + i * bar_spacing
+            
+            bar_w = (abs(val) / max_val) * (plot_w / 2)
+            
+            # Use Teal for positive, Rose for negative in Regression
+            color = QColor("#0d9488") if val > 0 else QColor("#e11d48")
+            
+            if val > 0:
+                rect = QRectF(center_x, y, bar_w, bar_h)
+                painter.setBrush(color)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawRoundedRect(rect, 3, 3)
+                
+                painter.setPen(QColor("#475569"))
+                painter.drawText(QRectF(0, y, center_x - 10, bar_h), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, name)
+            else:
+                rect = QRectF(center_x - bar_w, y, bar_w, bar_h)
+                painter.setBrush(color)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawRoundedRect(rect, 3, 3)
+                
+                painter.setPen(QColor("#475569"))
+                painter.drawText(QRectF(center_x + 10, y, center_x - 20, bar_h), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, name)
+
+
 class LinearRegressionScreen(ModelScreenBase):
     """Linear Regression with optional L1/L2/Elastic regularisation."""
 
@@ -42,28 +109,37 @@ class LinearRegressionScreen(ModelScreenBase):
     def __init__(self, parent=None) -> None:
         self._svc = SklearnLearnerService()
         super().__init__(parent)
+        # Call these AFTER super().__init__ so that _apply_button is already created
+        self._update_alpha_label()
+        self._update_l2_label()
+        self._on_reg_changed(0, True)
 
     def _add_main_layout(self, layout: QVBoxLayout) -> None:
-        params_box = QGroupBox("Parameters")
+        upper_layout = QHBoxLayout()
+        
+        # Left: Settings
+        settings_layout = QVBoxLayout()
+        
+        params_box = QGroupBox(i18n.t("Parameters"))
         p_layout = QVBoxLayout(params_box)
-        self._intercept_cb = QCheckBox("Fit intercept")
+        self._intercept_cb = QCheckBox(i18n.t("Fit intercept"))
         self._intercept_cb.setChecked(True)
         self._intercept_cb.stateChanged.connect(self._settings_changed)
         p_layout.addWidget(self._intercept_cb)
-        layout.addWidget(params_box)
+        settings_layout.addWidget(params_box)
 
-        reg_box = QGroupBox("Regularization")
+        reg_box = QGroupBox(i18n.t("Regularization"))
         reg_layout = QVBoxLayout(reg_box)
         self._reg_group = QButtonGroup(self)
         for i, label in enumerate(_REG_TYPES):
-            rb = QRadioButton(label)
+            rb = QRadioButton(i18n.t(label))
             if i == 0:
                 rb.setChecked(True)
             self._reg_group.addButton(rb, i)
             reg_layout.addWidget(rb)
         self._reg_group.idToggled.connect(self._on_reg_changed)
 
-        alpha_box = QGroupBox("Regularization strength:")
+        alpha_box = QGroupBox(i18n.t("Regularization strength:"))
         alpha_layout = QVBoxLayout(alpha_box)
         self._alpha_slider = QSlider(Qt.Orientation.Horizontal)
         self._alpha_slider.setRange(0, len(_ALPHAS) - 1)
@@ -76,7 +152,7 @@ class LinearRegressionScreen(ModelScreenBase):
         alpha_layout.addWidget(self._alpha_label)
         reg_layout.addWidget(alpha_box)
 
-        elastic_box = QGroupBox("Elastic net mixing (L1 : L2):")
+        elastic_box = QGroupBox(i18n.t("Elastic net mixing (L1 : L2):"))
         el_layout = QHBoxLayout(elastic_box)
         el_layout.addWidget(QLabel("L1"))
         self._l2_slider = QSlider(Qt.Orientation.Horizontal)
@@ -87,13 +163,21 @@ class LinearRegressionScreen(ModelScreenBase):
         el_layout.addWidget(self._l2_slider, 1)
         el_layout.addWidget(QLabel("L2"))
         reg_layout.addWidget(elastic_box)
-        layout.addWidget(reg_box)
+        settings_layout.addWidget(reg_box)
+        
+        upper_layout.addLayout(settings_layout, 1)
+        
+        # Right: Plot
+        plot_box = QGroupBox(i18n.t("Regression Weights"))
+        plot_layout = QVBoxLayout(plot_box)
+        self._weights_plot = RegressionWeightsPlot()
+        plot_layout.addWidget(self._weights_plot)
+        upper_layout.addWidget(plot_box, 2)
+        
+        layout.addLayout(upper_layout)
 
         self._elastic_box = elastic_box
         self._alpha_box = alpha_box
-        self._update_alpha_label()
-        self._update_l2_label()
-        self._on_reg_changed(0, True)
 
     def _on_reg_changed(self, _id: int, checked: bool) -> None:
         if not checked:
@@ -135,7 +219,20 @@ class LinearRegressionScreen(ModelScreenBase):
             est = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, fit_intercept=fit_int, max_iter=10000)
 
         params = {"reg_type": _REG_TYPES[reg], "alpha": alpha, "fit_intercept": fit_int}
-        return self._svc.fit(est, ds, "Linear Regression", "linear_regression", params)
+        result = self._svc.fit(est, ds, "Linear Regression", "linear_regression", params)
+        
+        # Update Weights Plot
+        if hasattr(result.trained_model, "coef_"):
+            coefs = result.trained_model.coef_
+            names = result.feature_names
+            # Sklearn might return multi-dim coef_ if multiple targets, but we enforce one.
+            if len(coefs.shape) > 1:
+                coefs = coefs[0]
+            
+            weight_list = list(zip(names, coefs))
+            self._weights_plot.set_data(weight_list)
+            
+        return result
 
     def serialize_node_state(self) -> dict:
         return {
