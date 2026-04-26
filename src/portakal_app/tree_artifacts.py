@@ -48,6 +48,27 @@ class DecisionTreeArtifact:
     meta_target_class_index: int | None = None
     meta_size_calc_idx: int | None = None
     meta_depth_limit: int | None = None
+    # Prediction support (populated by TreeService)
+    trained_model: object | None = None
+    feature_names: tuple[str, ...] = ()
+    categorical_encoders: dict = field(default_factory=dict)
+    numeric_cols: tuple[str, ...] = ()
+    target_encoder: dict | None = None
+
+    @property
+    def is_classifier(self) -> bool:
+        return self.kind == "classification"
+
+    def predict(self, X: "np.ndarray") -> "np.ndarray":
+        if self.trained_model is None:
+            raise RuntimeError("DecisionTreeArtifact has no stored estimator.")
+        return self.trained_model.predict(X)
+
+    def can_apply_to(self, dataset: DatasetHandle | None) -> bool:
+        if dataset is None or not self.feature_names:
+            return False
+        col_names = {col.name for col in dataset.domain.feature_columns}
+        return all(name in col_names for name in self.feature_names)
 
     @property
     def root(self) -> int:
@@ -128,6 +149,28 @@ class RandomForestArtifact:
     kind: str
     class_values: tuple[str, ...] = ()
     class_colors: tuple[str, ...] = DEFAULT_TREE_CLASS_COLORS
+    # Prediction support (populated by RandomForestService)
+    trained_model: object | None = None
+    feature_names: tuple[str, ...] = ()
+    categorical_encoders: dict = field(default_factory=dict)
+    numeric_cols: tuple[str, ...] = ()
+    target_name: str | None = None
+    target_encoder: dict | None = None
+
+    @property
+    def is_classifier(self) -> bool:
+        return self.kind == "classification"
+
+    def predict(self, X: "np.ndarray") -> "np.ndarray":
+        if self.trained_model is None:
+            raise RuntimeError("RandomForestArtifact has no stored estimator.")
+        return self.trained_model.predict(X)
+
+    def can_apply_to(self, dataset: DatasetHandle | None) -> bool:
+        if dataset is None or not self.feature_names:
+            return False
+        col_names = {col.name for col in dataset.domain.feature_columns}
+        return all(name in col_names for name in self.feature_names)
 
     @property
     def has_discrete_class(self) -> bool:
