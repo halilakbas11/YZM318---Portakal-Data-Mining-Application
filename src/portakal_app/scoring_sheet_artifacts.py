@@ -94,3 +94,19 @@ class ScoringSheetClassifierArtifact:
         scores = sorted([-score if score != 0 else score for score in self.base_scores])
         risks = sorted([100.0 - risk for risk in self.base_risks])
         return coefficients, scores, risks
+
+    @property
+    def is_classifier(self) -> bool:
+        return True
+
+    def predict_from_dataset(self, dataset: DatasetHandle) -> np.ndarray:
+        """Return integer class-index predictions for each row."""
+        class_to_idx = {v: i for i, v in enumerate(self.class_values)}
+        preds: list[int] = []
+        for row_idx in range(dataset.row_count):
+            row = dataset.dataframe.row(row_idx, named=True)
+            score = self.score_row(row)
+            prob = self.probability_for_score(score)
+            pred_class = self.class_values[1] if prob >= 0.5 else self.class_values[0]
+            preds.append(class_to_idx.get(pred_class, 0))
+        return np.asarray(preds, dtype=int)

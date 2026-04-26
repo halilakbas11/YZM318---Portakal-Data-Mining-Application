@@ -124,3 +124,24 @@ class CN2RuleClassifierArtifact:
             return False
         feature_names = tuple(column.name for column in dataset.domain.feature_columns)
         return feature_names == self.original_feature_names
+
+    @property
+    def is_classifier(self) -> bool:
+        return True
+
+    def predict_from_dataset(self, dataset: DatasetHandle) -> np.ndarray:
+        """Return integer class-index predictions for each row using ordered rule matching."""
+        class_to_idx = {v: i for i, v in enumerate(self.class_values)}
+        n = dataset.row_count
+        preds = np.zeros(n, dtype=int)
+        if self.rule_list:
+            default_idx = class_to_idx.get(self.rule_list[-1].prediction, 0)
+            preds[:] = default_idx
+        covered = np.zeros(n, dtype=bool)
+        for rule in self.rule_list:
+            if rule.is_default or covered.all():
+                break
+            mask = rule.evaluate_data(dataset) & ~covered
+            preds[mask] = class_to_idx.get(rule.prediction, 0)
+            covered |= mask
+        return preds

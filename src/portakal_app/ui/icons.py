@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import pathlib
+
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QStyle
+
+# Icons directory: src/portakal_app/icons/
+_ICONS_DIR = pathlib.Path(__file__).parent.parent / "icons"
 
 
 ICON_MAP = {
@@ -660,7 +665,21 @@ def _make_custom_icon(icon_name: str) -> QIcon | None:
 
 
 def get_widget_icon(icon_name: str):
-    # Try custom drawn icon first
+    # Try SVG file from src/portakal_app/icons/ directory
+    svg_path = _ICONS_DIR / f"{icon_name}.svg"
+    if svg_path.exists():
+        from PySide6.QtCore import QSize
+        from PySide6.QtSvg import QSvgRenderer
+        from PySide6.QtGui import QPixmap, QPainter
+        renderer = QSvgRenderer(str(svg_path))
+        if renderer.isValid():
+            px = QPixmap(QSize(48, 48))
+            px.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(px)
+            renderer.render(painter)
+            painter.end()
+            return QIcon(px)
+    # Try custom drawn icon
     custom = _make_custom_icon(icon_name)
     if custom is not None:
         return custom
