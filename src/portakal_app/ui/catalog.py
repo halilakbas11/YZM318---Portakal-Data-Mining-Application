@@ -83,6 +83,7 @@ from portakal_app.ui.screens.stacking_screen import StackingScreen
 from portakal_app.ui.screens.save_model_screen import SaveModelScreen
 from portakal_app.ui.screens.load_model_screen import LoadModelScreen
 from portakal_app.ui.screens.confusion_matrix_screen import ConfusionMatrixScreen
+from portakal_app.ui.screens.test_and_score_screen import TestAndScoreScreen
 
 
 def _placeholder_factory(title: str, description: str):
@@ -946,6 +947,9 @@ def build_widgets() -> list[WidgetDefinition]:
             "Stacking",
             _inputs("Data", "Model", "Aggregate"),
             _outputs("Model"),
+            input_channels=("Data", "Model", "Aggregate"),
+            multi_input_channels=("Model",),
+            semi_circular_inputs=True,
         ),
         WidgetDefinition(
             "save-model",
@@ -973,12 +977,14 @@ def build_widgets() -> list[WidgetDefinition]:
             "test-score",
             "evaluate",
             i18n.t("Test & Score"),
-            False,
-            _placeholder_factory("Test & Score", "Evaluation widgets will be integrated by a later group."),
-            i18n.t("Measure model performance."),
-            "score",
-            _inputs("Data", "Model"),
-            _outputs("Scores"),
+            True,
+            TestAndScoreScreen,
+            i18n.t("Evaluate models with cross-validation."),
+            "TestAndScore",
+            _inputs("Data", "Learner"),
+            (),
+            input_channels=("Data", "Learner"),
+            multi_input_channels=("Learner",),
         ),
         WidgetDefinition(
             "confusion-matrix",
