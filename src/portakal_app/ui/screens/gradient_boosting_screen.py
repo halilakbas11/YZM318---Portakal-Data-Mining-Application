@@ -30,7 +30,11 @@ _LAMBDAS = list(chain(
 
 
 class GradientBoostingScreen(ModelScreenBase):
-    """Gradient Boosting on decision trees — sklearn GradientBoosting equivalent."""
+    """Gradient Boosting on decision trees — sklearn GradientBoosting equivalent.
+
+    Supports both classification (GradientBoostingClassifier) and regression
+    (GradientBoostingRegressor) depending on the target column type.
+    """
 
     _OUTPUT_PORT_LABEL = "Model"
 
@@ -47,6 +51,7 @@ class GradientBoostingScreen(ModelScreenBase):
         self._n_spin.setRange(1, 10000)
         self._n_spin.setValue(100)
         self._n_spin.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._n_spin.setToolTip("Total number of boosting stages to perform.")
         self._n_spin.valueChanged.connect(self._settings_changed)
         form1.addRow("Number of trees:", self._n_spin)
 
@@ -56,6 +61,7 @@ class GradientBoostingScreen(ModelScreenBase):
         self._lr_spin.setSingleStep(0.001)
         self._lr_spin.setDecimals(3)
         self._lr_spin.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._lr_spin.setToolTip("Shrinks the contribution of each tree. Lower values need more trees.")
         self._lr_spin.valueChanged.connect(self._settings_changed)
         form1.addRow("Learning rate:", self._lr_spin)
 
@@ -135,7 +141,13 @@ class GradientBoostingScreen(ModelScreenBase):
         kw = dict(n_estimators=n, learning_rate=lr, random_state=random_state,
                   max_depth=max_depth, min_samples_split=min_split, subsample=subsample)
         est = GradientBoostingClassifier(**kw) if is_clf else GradientBoostingRegressor(**kw)
-        params = {"n_estimators": n, "learning_rate": lr, "max_depth": max_depth}
+        params = {
+            "n_estimators": n,
+            "learning_rate": lr,
+            "max_depth": max_depth,
+            "min_samples_split": min_split,
+            "subsample": subsample,
+        }
         return self._svc.fit(est, ds, "Gradient Boosting", "gradient_boosting", params)
 
     def serialize_node_state(self) -> dict:

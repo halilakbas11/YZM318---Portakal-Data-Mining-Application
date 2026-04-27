@@ -19,7 +19,12 @@ _LOSS_LABELS = ["Linear", "Square", "Exponential"]
 
 
 class AdaBoostScreen(ModelScreenBase):
-    """AdaBoost ensemble — combines weak learners via adaptive boosting."""
+    """AdaBoost ensemble — combines weak learners via adaptive boosting.
+
+    Uses decision stumps as default base estimators. Supports classification
+    (AdaBoostClassifier) and regression (AdaBoostRegressor) with selectable
+    loss functions for the regression variant.
+    """
 
     _OUTPUT_PORT_LABEL = "Model"
 
@@ -36,6 +41,7 @@ class AdaBoostScreen(ModelScreenBase):
         self._n_spin.setRange(1, 10000)
         self._n_spin.setValue(50)
         self._n_spin.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._n_spin.setToolTip("Maximum number of weak learners (boosting rounds).")
         self._n_spin.valueChanged.connect(self._settings_changed)
         form.addRow("Number of estimators:", self._n_spin)
 
@@ -45,6 +51,7 @@ class AdaBoostScreen(ModelScreenBase):
         self._lr_spin.setSingleStep(1e-5)
         self._lr_spin.setDecimals(5)
         self._lr_spin.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._lr_spin.setToolTip("Weight applied to each weak learner. Smaller values require more estimators.")
         self._lr_spin.valueChanged.connect(self._settings_changed)
         form.addRow("Learning rate:", self._lr_spin)
 
@@ -59,15 +66,22 @@ class AdaBoostScreen(ModelScreenBase):
         repro_form = QFormLayout(repro_box)
 
         self._seed_cb = QCheckBox("Fixed seed for random generator:")
-        self._seed_cb.stateChanged.connect(self._settings_changed)
+        self._seed_cb.stateChanged.connect(self._on_seed_toggled)
         self._seed_spin = QSpinBox()
         self._seed_spin.setRange(0, 2 ** 31 - 1)
         self._seed_spin.setValue(0)
         self._seed_spin.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._seed_spin.setEnabled(False)  # disabled until checkbox is checked
         self._seed_spin.valueChanged.connect(self._settings_changed)
         repro_form.addRow(self._seed_cb, self._seed_spin)
 
         layout.addWidget(repro_box)
+
+    def _on_seed_toggled(self) -> None:
+        """Enable or disable the seed spin box based on the checkbox state."""
+        checked = self._seed_cb.isChecked()
+        self._seed_spin.setEnabled(checked)
+        self._settings_changed()
 
     def _train(self):
         from sklearn.ensemble import AdaBoostClassifier, AdaBoostRegressor
@@ -88,7 +102,12 @@ class AdaBoostScreen(ModelScreenBase):
         else:
             est = AdaBoostRegressor(n_estimators=n, learning_rate=lr, loss=loss, random_state=random_state)
 
-        params = {"n_estimators": n, "learning_rate": lr, "loss": loss}
+        params = {
+            "n_estimators": n,
+            "learning_rate": lr,
+            "loss": loss,
+            "algorithm": "SAMME" if is_clf else "N/A",
+        }
         return self._svc.fit(est, ds, "AdaBoost", "adaboost", params)
 
     def serialize_node_state(self) -> dict:
