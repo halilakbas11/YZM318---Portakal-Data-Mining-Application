@@ -881,6 +881,60 @@ class I18nManager(QObject):
                 # ── Paylaşılan durum mesajları ──
                 "Load a dataset with numeric columns.": "Sayısal sütunlar içeren bir veri seti yükleyin.",
                 "Load a dataset with at least 2 numeric columns.": "En az 2 sayısal sütun içeren bir veri seti yükleyin.",
+
+                # ── Neural Network ──
+                "Network Architecture": "Ağ Mimarisi",
+                "Neurons in hidden layers:": "Gizli katmanlardaki nöronlar:",
+                "Solver Options": "Çözücü Seçenekleri",
+                "Activation:": "Aktivasyon:",
+                "Solver:": "Çözücü:",
+                "Early stopping": "Erken durdurma",
+                "Initial learning rate:": "Başlangıç öğrenme oranı:",
+                "Max iterations:": "Maks. yineleme:",
+                "Validation fraction:": "Doğrulama oranı:",
+                "Replicable training": "Tekrarlanabilir eğitim",
+
+                # ── Random Forest ──
+                "Basic Properties": "Temel Özellikler",
+                "Number of trees:": "Ağaç sayısı:",
+                "Attributes at each split:": "Her bölünmede öznitelikler:",
+                "Growth Control": "Büyüme Kontrolü",
+                "Limit depth of trees:": "Ağaç derinliğini sınırla:",
+                "Do not split subsets smaller than:": "Şundan küçük alt kümeleri bölme:",
+                "Balance class distribution": "Sınıf dağılımını dengele",
+                "Feature Importance (Gini)": "Öznitelik Önemi (Gini)",
+                "Technical Details": "Teknik Detaylar",
+                "Forest ID": "Orman Kimliği",
+
+                # ── Logistic Regression ──
+                "Regularization": "Düzenlileştirme",
+                "Strength:": "Güç:",
+                "Weak": "Zayıf",
+                "Strong": "Güçlü",
+                "Coefficient Plot": "Katsayı Grafiği",
+                "Statistical Summary": "İstatistiksel Özet",
+                "Target Class:": "Hedef Sınıf:",
+                "Intercept:": "Kesişim (Intercept):",
+                "Penalty:": "Ceza Tipi:",
+
+                # ── Linear Regression ──
+                "Parameters": "Parametreler",
+                "Fit intercept": "Sabit terimi ekle (Intercept)",
+                "No regularization": "Düzenlileştirme yok",
+                "Ridge regression (L2)": "Ridge regresyonu (L2)",
+                "Lasso regression (L1)": "Lasso regresyonu (L1)",
+                "Elastic net regression": "Elastic Net regresyonu",
+                "Regularization strength:": "Düzenlileştirme gücü:",
+                "Elastic net mixing (L1 : L2):": "Elastic Net karışımı (L1 : L2):",
+                "Regression Weights": "Regresyon Ağırlıkları",
+
+                # ── Naive Bayes ──
+                "Naive Bayes Analysis": "Naive Bayes Analizi",
+                "Class Priors": "Sınıf Önsel Olasılıkları",
+                "Feature Means (Theta)": "Öznitelik Ortalamaları (Theta)",
+                "Class": "Sınıf",
+                "Feature": "Öznitelik",
+                "Probability": "Olasılık",
             }
         }
         self._reverse_translations: dict[str, dict[str, str]] = {

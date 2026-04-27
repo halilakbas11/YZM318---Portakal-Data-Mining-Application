@@ -22,6 +22,9 @@ from PySide6.QtWidgets import (
 
 from portakal_app.data.models import DatasetHandle
 from portakal_app.data.services.sklearn_learner_service import SklearnLearnerService
+from portakal_app.logistic_regression_artifacts import (
+    LogisticRegressionClassifierArtifact,
+)
 from portakal_app.models import WorkflowPayload
 from portakal_app.rule_artifacts import CN2RuleClassifierArtifact
 from portakal_app.scoring_sheet_artifacts import ScoringSheetClassifierArtifact
@@ -29,7 +32,12 @@ from portakal_app.sklearn_model_artifacts import SklearnModelArtifact
 from portakal_app.tree_artifacts import DecisionTreeArtifact, RandomForestArtifact
 from portakal_app.ui.screens.node_screen import WorkflowNodeScreenSupport
 
-_SKLEARN_TYPES = (SklearnModelArtifact, DecisionTreeArtifact, RandomForestArtifact)
+_SKLEARN_TYPES = (
+    SklearnModelArtifact,
+    DecisionTreeArtifact,
+    RandomForestArtifact,
+    LogisticRegressionClassifierArtifact,
+)
 _RULE_TYPES = (ScoringSheetClassifierArtifact, CN2RuleClassifierArtifact)
 _ALL_ARTIFACT_TYPES = _SKLEARN_TYPES + _RULE_TYPES
 

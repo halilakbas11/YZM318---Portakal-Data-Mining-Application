@@ -23,7 +23,11 @@ _KERNEL_LABELS = ["Linear", "Polynomial", "RBF", "Sigmoid"]
 
 
 class SVMScreen(ModelScreenBase):
-    """Support Vector Machine — C-SVM and ν-SVM with kernel selection."""
+    """Support Vector Machine — C-SVM and ν-SVM with kernel selection.
+
+    Supports classification (SVC / NuSVC) and regression (SVR / NuSVR)
+    with Linear, Polynomial, RBF, and Sigmoid kernel functions.
+    """
 
     _OUTPUT_PORT_LABEL = "Model"
 
@@ -44,6 +48,7 @@ class SVMScreen(ModelScreenBase):
 
         type_form.addRow(svm_rb)
         self._c_spin = self._make_double_spin(0.1, 512.0, 1.0, 0.1, 2)
+        self._c_spin.setToolTip("Regularization parameter. Higher values allow less margin violation.")
         self._epsilon_spin = self._make_double_spin(0.01, 512.0, 0.1, 0.1, 2)
         type_form.addRow(self._make_spin_row("Cost (C):", self._c_spin))
         type_form.addRow(self._make_spin_row("Regression loss epsilon (ε):", self._epsilon_spin))
@@ -72,6 +77,7 @@ class SVMScreen(ModelScreenBase):
         kp_form = QFormLayout(kp_box)
         self._gamma_spin = self._make_double_spin(0.0, 10.0, 0.0, 0.01, 2)
         self._gamma_spin.setSpecialValueText("auto")
+        self._gamma_spin.setToolTip("Kernel coefficient. Set to 0 for 'auto' (1 / n_features).")
         self._coef0_spin = self._make_double_spin(0.0, 10.0, 1.0, 0.01, 2)
         self._degree_spin = QSpinBox()
         self._degree_spin.setRange(0, 10)
@@ -180,7 +186,14 @@ class SVMScreen(ModelScreenBase):
             nu_C = self._nu_c_spin.value()
             est = NuSVC(nu=min(nu, 0.999), probability=True, **common) if is_clf else NuSVR(nu=nu, C=nu_C, **common)
 
-        params = {"svm_type": "SVM" if t == _SVM else "ν-SVM", "kernel": k}
+        params = {
+            "svm_type": "SVM" if t == _SVM else "ν-SVM",
+            "kernel": k,
+            "gamma": gamma,
+            "degree": degree,
+            "tol": tol,
+            "max_iter": max_iter,
+        }
         return self._svc.fit(est, ds, "SVM", "svm", params)
 
     # ── Persistence ───────────────────────────────────────────────────

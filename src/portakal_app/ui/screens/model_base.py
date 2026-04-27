@@ -110,6 +110,8 @@ class ModelScreenBase(QWidget, WorkflowNodeScreenSupport):
         self._apply()
 
     def _settings_changed(self) -> None:
+        if not hasattr(self, "_apply_button"):
+            return  # still initializing, button not created yet
         if self._is_auto_apply():
             self._apply()
         else:

@@ -84,6 +84,9 @@ class LogisticRegressionService:
         encoded_features: list[_EncodedFeature] = []
         original_feature_names: list[str] = []
         design_blocks: list[np.ndarray] = []
+        
+        cat_encoders: dict[str, list] = {}
+        num_cols: list[str] = []
 
         for column in feature_columns:
             series = dataframe.get_column(column.name)
@@ -94,12 +97,23 @@ class LogisticRegressionService:
             original_feature_names.append(column.name)
             if encoded.width:
                 design_blocks.append(encoded.matrix)
+            
+            # Track encoders for Confusion Matrix compatibility
+            if encoded.artifact.is_discrete:
+                cat_encoders[column.name] = list(encoded.artifact.values)
+            else:
+                num_cols.append(column.name)
 
         if not encoded_features:
             raise ValueError("No supported feature columns found for Logistic Regression.")
 
         row_count = dataset.row_count
         matrix = np.concatenate(design_blocks, axis=1) if design_blocks else np.zeros((row_count, 0), dtype=float)
+        
+        # Target Encoder
+        raw_classes = _safe_unique_values(target_series)
+        target_encoder = {str(v): i for i, v in enumerate(raw_classes)}
+        
         y = self._encode_target(target_series, class_values)
         weights = self._fit_binary(matrix, y, config)
 
@@ -149,6 +163,10 @@ class LogisticRegressionService:
             class_values=(class_values[0], class_values[1]),
             intercepts=(-intercept, intercept),
             features=tuple(features),
+            feature_names=tuple(original_feature_names),
+            categorical_encoders=cat_encoders,
+            numeric_cols=tuple(num_cols),
+            target_encoder=target_encoder,
             params={
                 "max_iter": config.max_iter,
                 "ridge": config.ridge,

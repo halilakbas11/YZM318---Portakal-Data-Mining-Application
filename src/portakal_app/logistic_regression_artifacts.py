@@ -109,7 +109,14 @@ class LogisticRegressionClassifierArtifact:
     class_values: tuple[str, str]
     intercepts: tuple[float, float]
     features: tuple[LogisticRegressionFeatureArtifact, ...]
+    feature_names: tuple[str, ...] = ()
+    categorical_encoders: dict = field(default_factory=dict)
+    numeric_cols: tuple[str, ...] = ()
+    target_encoder: dict | None = None
     params: dict[str, object] = field(default_factory=dict)
+
+    def is_classifier(self) -> bool:
+        return True
 
     def can_apply_to(self, dataset: DatasetHandle | None) -> bool:
         if dataset is None:
@@ -119,6 +126,41 @@ class LogisticRegressionClassifierArtifact:
 
     def feature_by_name(self, name: str) -> LogisticRegressionFeatureArtifact:
         return next(feature for feature in self.features if feature.name == name)
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        # Standardize X based on feature artifacts before predicting
+        X_proc = X.copy()
+        col_idx = 0
+        for feature in self.features:
+            if not feature.is_discrete:
+                mean = feature.mean_value or 0.0
+                std = feature.std_value or 1.0
+                X_proc[:, col_idx] = (X_proc[:, col_idx] - mean) / std
+                col_idx += 1
+            else:
+                # Skip the one-hot columns for this discrete feature
+                width = max(0, len(feature.values) - 1)
+                col_idx += width
+
+        # Construct the weight vector
+        weights = [self.intercepts[1]]
+        for feature in self.features:
+            if not feature.is_discrete:
+                weights.append(feature.coefficients[1])
+            else:
+                if feature.discrete_points:
+                    weights.extend(feature.discrete_points[1][1:])
+                else:
+                    weights.append(feature.coefficients[1])
+        
+        w = np.asarray(weights)
+        X_bias = np.hstack([np.ones((X_proc.shape[0], 1)), X_proc])
+        
+        if X_bias.shape[1] != w.shape[0]:
+            return np.zeros(X.shape[0], dtype=int)
+            
+        scores = X_bias @ w
+        return (scores > 0).astype(int)
 
     def logits(self, marker_values: dict[str, Any]) -> np.ndarray:
         totals = np.asarray(self.intercepts, dtype=float)

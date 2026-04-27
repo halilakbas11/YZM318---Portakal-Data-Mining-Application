@@ -15,7 +15,12 @@ from portakal_app.ui.screens.model_base import ModelScreenBase
 
 
 class ScoringSheetScreen(ModelScreenBase):
-    """Scoring Sheet — fast explainable point-based classifier."""
+    """Scoring Sheet — fast explainable point-based classifier.
+
+    Builds a transparent, point-based scoring system that assigns integer
+    scores to binary feature conditions and converts the total to a risk
+    probability via logistic calibration.
+    """
 
     _OUTPUT_PORT_LABEL = "Classifier"
 
@@ -32,6 +37,7 @@ class ScoringSheetScreen(ModelScreenBase):
         self._n_rules_spin.setRange(1, 50)
         self._n_rules_spin.setValue(5)
         self._n_rules_spin.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._n_rules_spin.setToolTip("Upper limit on the number of rules (features) in the scoring sheet.")
         self._n_rules_spin.valueChanged.connect(self._settings_changed)
         form.addRow("Maximum number of decision parameters:", self._n_rules_spin)
 
@@ -39,6 +45,7 @@ class ScoringSheetScreen(ModelScreenBase):
         self._max_points_spin.setRange(1, 100)
         self._max_points_spin.setValue(5)
         self._max_points_spin.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._max_points_spin.setToolTip("Maximum absolute point value a single rule can contribute.")
         self._max_points_spin.valueChanged.connect(self._settings_changed)
         form.addRow("Maximum points per decision parameter:", self._max_points_spin)
 
