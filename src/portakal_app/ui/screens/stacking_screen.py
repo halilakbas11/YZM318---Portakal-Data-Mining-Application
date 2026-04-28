@@ -25,7 +25,7 @@ class StackingScreen(ModelScreenBase):
     def _add_main_layout(self, layout: QVBoxLayout) -> None:
         info_box = QGroupBox("Base Models")
         info_layout = QVBoxLayout(info_box)
-        self._models_label = QLabel("Connect models to the 'Model' input ports.")
+        self._models_label = QLabel("Connect models to the 'Model N' input ports.")
         self._models_label.setWordWrap(True)
         self._models_label.setStyleSheet("font-style: italic; background: transparent;")
         info_layout.addWidget(self._models_label)
@@ -54,7 +54,8 @@ class StackingScreen(ModelScreenBase):
             self._aggregate_artifact = payload.value
             self._agg_label.setText(f"Aggregate: {payload.value.display_name}")
         elif isinstance(payload.value, SklearnModelArtifact):
-            key = payload.port_label or f"model_{len(self._base_artifacts)}"
+            # All base models arrive via the "Model" multi-input channel; key by model_id
+            key = getattr(payload.value, "model_id", None) or str(id(payload.value))
             self._base_artifacts[key] = payload.value
         else:
             self._extra_inputs[payload.port_label] = payload.value
@@ -65,9 +66,9 @@ class StackingScreen(ModelScreenBase):
     def _update_models_label(self) -> None:
         if self._base_artifacts:
             names = ", ".join(a.display_name for a in self._base_artifacts.values())
-            self._models_label.setText(f"Base models: {names}")
+            self._models_label.setText(f"Base models ({len(self._base_artifacts)}): {names}")
         else:
-            self._models_label.setText("Connect models to the 'Model' input ports.")
+            self._models_label.setText("Connect models to the 'Model' input port.")
 
     def _train(self):
         from sklearn.ensemble import StackingClassifier, StackingRegressor
@@ -83,18 +84,18 @@ class StackingScreen(ModelScreenBase):
         is_clf = target_cols[0].logical_type in {"categorical", "boolean"}
 
         estimators = [
-            (key, clone(art.sklearn_estimator))
-            for key, art in self._base_artifacts.items()
-            if art.sklearn_estimator is not None
+            (f"base_{i}", clone(art.sklearn_estimator))
+            for i, (_, art) in enumerate(self._base_artifacts.items())
+            if getattr(art, "sklearn_estimator", None) is not None
         ]
         if not estimators:
             raise ValueError("Base models must be sklearn-backed (e.g. from kNN, SVM, Neural Network).")
 
         final_estimator = None
-        if self._aggregate_artifact and self._aggregate_artifact.sklearn_estimator is not None:
+        if self._aggregate_artifact and getattr(self._aggregate_artifact, "sklearn_estimator", None) is not None:
             final_estimator = clone(self._aggregate_artifact.sklearn_estimator)
 
-        kw = {"estimators": estimators}
+        kw: dict = {"estimators": estimators}
         if final_estimator:
             kw["final_estimator"] = final_estimator
 

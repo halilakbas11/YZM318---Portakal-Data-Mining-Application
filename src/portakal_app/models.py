@@ -48,16 +48,22 @@ WORKFLOW_PORT_COMPATIBILITY_OVERRIDES = {
     ("Data", "Template Data"): frozenset({"apply-domain"}),
     ("Model", "Tree"): frozenset({"tree-viewer"}),
     ("Components", "Projection"): frozenset({"linear-projection"}),
-    # Any trained artifact can flow into save-model or confusion-matrix
+    # Any trained artifact can flow into save-model, stacking, or confusion-matrix
     ("Tree", "Model"): frozenset({"save-model", "stacking", "confusion-matrix"}),
     ("Classifier", "Model"): frozenset({"save-model", "stacking", "confusion-matrix"}),
     ("Random Forest", "Model"): frozenset({"save-model", "stacking", "confusion-matrix"}),
     # Viewers accept SklearnModelArtifact as "Classifier" when output is "Model"
     ("Model", "Classifier"): frozenset({"cn2-rule-viewer", "nomogram", "scoring-sheet-viewer", "calibrated-learner"}),
-    # Stacking aggregate input accepts any model
+    # Stacking aggregate port accepts any model type
+    ("Model", "Aggregate"): frozenset({"stacking"}),
     ("Tree", "Aggregate"): frozenset({"stacking"}),
     ("Classifier", "Aggregate"): frozenset({"stacking"}),
     ("Random Forest", "Aggregate"): frozenset({"stacking"}),
+    # Test & Score learner port accepts any model type
+    ("Model", "Learner"): frozenset({"test-score"}),
+    ("Tree", "Learner"): frozenset({"test-score"}),
+    ("Classifier", "Learner"): frozenset({"test-score"}),
+    ("Random Forest", "Learner"): frozenset({"test-score"}),
 }
 
 
