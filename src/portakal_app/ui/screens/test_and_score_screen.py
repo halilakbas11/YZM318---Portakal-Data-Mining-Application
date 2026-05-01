@@ -76,7 +76,20 @@ def _is_model_artifact(value: object) -> bool:
 
 
 def _get_sklearn_estimator(artifact: object) -> object | None:
-    return getattr(artifact, "sklearn_estimator", None)
+    """Return an unfitted sklearn estimator clone-able for cross-validation."""
+    from sklearn.base import clone
+
+    est = getattr(artifact, "sklearn_estimator", None)
+    if est is not None:
+        return est
+    # Tree / RandomForest / etc. expose a fitted .trained_model — clone resets fit state.
+    trained = getattr(artifact, "trained_model", None)
+    if trained is not None:
+        try:
+            return clone(trained)
+        except Exception:
+            return None
+    return None
 
 
 class TestAndScoreScreen(QWidget, WorkflowNodeScreenSupport):
@@ -87,7 +100,7 @@ class TestAndScoreScreen(QWidget, WorkflowNodeScreenSupport):
         self._init_workflow_node_support()
 
         self._dataset: DatasetHandle | None = None
-        self._models: dict[str, object] = {}
+        self._models: dict[int, object] = {}
         self._svc = SklearnLearnerService()
 
         layout = QVBoxLayout(self)
@@ -172,8 +185,8 @@ class TestAndScoreScreen(QWidget, WorkflowNodeScreenSupport):
         elif payload.port_label == "Data" and isinstance(payload.value, DatasetHandle):
             self._dataset = payload.value
         elif _is_model_artifact(payload.value):
-            key = getattr(payload.value, "model_id", None) or payload.port_label
-            self._models[key] = payload.value
+            # Key by id(artifact) so multiple instances of the same model type stay distinct.
+            self._models[id(payload.value)] = payload.value
         self._run()
 
     def current_output_payload(self) -> WorkflowPayload | None:
@@ -242,18 +255,19 @@ class TestAndScoreScreen(QWidget, WorkflowNodeScreenSupport):
 
         cv = self._build_cv(is_clf, y)
 
-        for port_label, artifact in self._models.items():
+        for artifact in self._models.values():
+            display = getattr(artifact, "display_name", type(artifact).__name__)
             estimator = _get_sklearn_estimator(artifact)
             if estimator is None:
-                results.append((port_label, {m: "N/A" for m, _ in metric_defs}))
+                results.append((display, {m: "N/A" for m, _ in metric_defs}))
                 continue
             try:
                 row = self._evaluate_one(estimator, X, y, is_clf, metric_defs, cv)
-                results.append((getattr(artifact, "display_name", port_label), row))
+                results.append((display, row))
             except Exception as exc:
-                error_row = {m: f"Err" for m, _ in metric_defs}
+                error_row = {m: "Err" for m, _ in metric_defs}
                 error_row["_error"] = str(exc)
-                results.append((getattr(artifact, "display_name", port_label), error_row))
+                results.append((display, error_row))
 
         self._fill_table(results, metric_defs, is_clf)
         method_label = self._method_combo.currentText()
