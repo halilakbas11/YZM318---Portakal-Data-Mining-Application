@@ -91,8 +91,7 @@ class RankScreen(QWidget, WorkflowNodeScreenSupport):
         controls_layout.addRow("Target", self._target_combo)
 
         self._feature_filter_combo = QComboBox(self)
-        for label, value in self.FILTER_OPTIONS.items():
-            self._feature_filter_combo.addItem(label, value)
+        self._feature_filter_combo.addItems(list(self.FILTER_OPTIONS.keys()))
         self._feature_filter_combo.currentTextChanged.connect(lambda _value: self._refresh_ranking())
         controls_layout.addRow("Feature Filter", self._feature_filter_combo)
 
@@ -169,16 +168,13 @@ class RankScreen(QWidget, WorkflowNodeScreenSupport):
     def serialize_node_state(self) -> dict[str, object]:
         return {
             "target": self._target_combo.currentText(),
-            "feature_filter": str(self._feature_filter_combo.currentData() or "all"),
+            "feature_filter": self._feature_filter_combo.currentText(),
             "top_n": self._top_n_spin.value(),
             "auto_send": getattr(self, "_auto_send_checkbox", None) is not None and self._auto_send_checkbox.isChecked(),
         }
 
     def restore_node_state(self, payload: dict[str, object]) -> None:
-        filter_value = str(payload.get("feature_filter") or "All")
-        filter_index = self._feature_filter_combo.findData(self.FILTER_OPTIONS.get(filter_value, filter_value))
-        if filter_index >= 0:
-            self._feature_filter_combo.setCurrentIndex(filter_index)
+        self._feature_filter_combo.setCurrentText(str(payload.get("feature_filter") or "All"))
         self._top_n_spin.setValue(int(payload.get("top_n") or 10))
         if hasattr(self, "_auto_send_checkbox"):
             self._auto_send_checkbox.setChecked(bool(payload.get("auto_send", True)))
@@ -201,7 +197,7 @@ class RankScreen(QWidget, WorkflowNodeScreenSupport):
             self._ranked_rows = []
             return
         target_name = self._resolved_target_name()
-        feature_filter = str(self._feature_filter_combo.currentData() or "all")
+        feature_filter = self.FILTER_OPTIONS[self._feature_filter_combo.currentText()]
         ranked_rows = self._ranking_service.rank(
             self._dataset_handle,
             target_name=target_name,

@@ -2,13 +2,14 @@
 # Python >= 3.11 required
 
 PySide6>=6.8
+numpy>=1.26
 polars>=1.20
 fastexcel>=0.12.1
 httpx>=0.27
 kaggle>=1.7
+matplotlib>=3.8
+scikit-learn>=1.4
+scipy>=1.12
 xlsxwriter>=3.2
 python-slugify>=8.0
 tqdm>=4.60
-scikit-learn>=1.4
-scipy>=1.12
-numpy>=1.26

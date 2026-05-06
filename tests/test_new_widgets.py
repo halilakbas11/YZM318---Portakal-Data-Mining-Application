@@ -15,9 +15,20 @@ from portakal_app.app import create_application
 from portakal_app.data.models import PaintDataPoint
 from portakal_app.data.services.file_import_service import FileImportService
 from portakal_app.ui.main_window import MainWindow
+from portakal_app.ui.screens.ca_screen import CAScreen
 from portakal_app.ui.screens.color_screen import ColorScreen
+from portakal_app.ui.screens.correlations_screen import CorrelationsScreen
+from portakal_app.ui.screens.dbscan_screen import DBSCANScreen
+from portakal_app.ui.screens.distance_file_screen import DistanceFileScreen
 from portakal_app.ui.screens.datasets_screen import DatasetsScreen
+from portakal_app.ui.screens.distance_map_screen import DistanceMapScreen
+from portakal_app.ui.screens.distance_matrix_screen import DistanceMatrixScreen
+from portakal_app.ui.screens.distance_transformation_screen import DistanceTransformationScreen
+from portakal_app.ui.screens.distances_screen import DistancesScreen
+from portakal_app.ui.screens.mds_screen import MDSScreen
+from portakal_app.ui.screens.outliers_screen import OutliersScreen
 from portakal_app.ui.screens.paint_data_screen import PaintDataScreen
+from portakal_app.ui.screens.save_distance_matrix_screen import SaveDistanceMatrixScreen
 
 
 @pytest.fixture(scope="session")
@@ -218,6 +229,61 @@ def test_main_window_opens_new_active_widgets(app):
     window._show_widget("color")
     assert isinstance(window._workspace.current_widget(), ColorScreen)
     assert window._widget_index["color"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("distances")
+    window._show_widget("distances")
+    assert isinstance(window._workspace.current_widget(), DistancesScreen)
+    assert window._widget_index["distances"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("distance-matrix")
+    window._show_widget("distance-matrix")
+    assert isinstance(window._workspace.current_widget(), DistanceMatrixScreen)
+    assert window._widget_index["distance-matrix"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("distance-file")
+    window._show_widget("distance-file")
+    assert isinstance(window._workspace.current_widget(), DistanceFileScreen)
+    assert window._widget_index["distance-file"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("distance-transformation")
+    window._show_widget("distance-transformation")
+    assert isinstance(window._workspace.current_widget(), DistanceTransformationScreen)
+    assert window._widget_index["distance-transformation"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("save-distance-matrix")
+    window._show_widget("save-distance-matrix")
+    assert isinstance(window._workspace.current_widget(), SaveDistanceMatrixScreen)
+    assert window._widget_index["save-distance-matrix"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("correlations")
+    window._show_widget("correlations")
+    assert isinstance(window._workspace.current_widget(), CorrelationsScreen)
+    assert window._widget_index["correlations"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("distance-map")
+    window._show_widget("distance-map")
+    assert isinstance(window._workspace.current_widget(), DistanceMapScreen)
+    assert window._widget_index["distance-map"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("outliers")
+    window._show_widget("outliers")
+    assert isinstance(window._workspace.current_widget(), OutliersScreen)
+    assert window._widget_index["outliers"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("dbscan")
+    window._show_widget("dbscan")
+    assert isinstance(window._workspace.current_widget(), DBSCANScreen)
+    assert window._widget_index["dbscan"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("correspondence-analysis")
+    window._show_widget("correspondence-analysis")
+    assert isinstance(window._workspace.current_widget(), CAScreen)
+    assert window._widget_index["correspondence-analysis"].enabled is True
+
+    window._workspace.canvas.add_workflow_node("mds")
+    window._show_widget("mds")
+    assert isinstance(window._workspace.current_widget(), MDSScreen)
+    assert window._widget_index["mds"].enabled is True
 
 
 def test_file_widget_column_edits_flow_to_downstream_data_table(app, tmp_path):

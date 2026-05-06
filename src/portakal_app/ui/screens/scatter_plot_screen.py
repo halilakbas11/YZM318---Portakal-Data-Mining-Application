@@ -308,6 +308,9 @@ class _ScatterCanvas(QWidget):
         else:
             self.reset_view()
         self.update()
+        if self._show_density:
+            print("Color region repaint requested", flush=True)
+            self.repaint()
 
     def set_selected_rows(self, rows: list[int]) -> None:
         self._selected_rows = set(rows)
@@ -774,41 +777,66 @@ class _ScatterCanvas(QWidget):
         return markers
 
     def _draw_density(self, painter: QPainter, chart: QRect) -> None:
+        print("Color region calc started", flush=True)
         if self._x_col is None or self._y_col is None or self._x_col.is_discrete or self._y_col.is_discrete:
+            print("Color region skipped: X/Y axes are missing or discrete", flush=True)
             return
         if not self._legend_items or not self._points:
+            print("Color region skipped: no legend items or plot points", flush=True)
             return
-        bins_x = 22
-        bins_y = 18
-        counts: dict[tuple[int, int], dict[str, int]] = {}
+        step = max(8, min(16, int(max(chart.width(), chart.height()) / 70)))
+        cols = max(1, int(math.ceil(chart.width() / step)))
+        rows = max(1, int(math.ceil(chart.height() / step)))
+        xs = chart.left() + np.arange(cols, dtype=float) * step + step / 2.0
+        ys = chart.top() + np.arange(rows, dtype=float) * step + step / 2.0
+        if xs.size == 0 or ys.size == 0:
+            print("Color region skipped: empty meshgrid", flush=True)
+            return
+        pixel_grid = np.array([(x, y) for y in ys for x in xs], dtype=float)
+        print(
+            f"Meshgrid created: rows={rows}, cols={cols}, cells={pixel_grid.shape[0]}, step={step}",
+            flush=True,
+        )
+        x_low, x_high = self._x_range
+        y_low, y_high = self._y_range
+        span_x = x_high - x_low or 1.0
+        span_y = y_high - y_low or 1.0
+        print(
+            f"Color region bounds: x=({x_low:.6g}, {x_high:.6g}), y=({y_low:.6g}, {y_high:.6g})",
+            flush=True,
+        )
+        query = np.column_stack(
+            (
+                x_low + ((pixel_grid[:, 0] - chart.left()) / max(chart.width(), 1)) * span_x,
+                y_high - ((pixel_grid[:, 1] - chart.top()) / max(chart.height(), 1)) * span_y,
+            )
+        )
+        samples = np.asarray([(point.x, point.y) for point in self._points], dtype=float)
+        if samples.ndim != 2 or samples.shape[0] == 0:
+            print("Color region skipped: no valid samples", flush=True)
+            return
         color_map = {label: color for label, color in self._legend_items}
-        for point in self._points:
-            draw_x, draw_y = self._jittered(point)
-            if not (self._x_range[0] <= draw_x <= self._x_range[1] and self._y_range[0] <= draw_y <= self._y_range[1]):
-                continue
-            ix = int((draw_x - self._x_range[0]) / max(self._x_range[1] - self._x_range[0], 1e-9) * bins_x)
-            iy = int((draw_y - self._y_range[0]) / max(self._y_range[1] - self._y_range[0], 1e-9) * bins_y)
-            ix = max(0, min(bins_x - 1, ix))
-            iy = max(0, min(bins_y - 1, iy))
-            counts.setdefault((ix, iy), {}).setdefault(point.legend, 0)
-            counts[(ix, iy)][point.legend] += 1
-        if not counts:
-            return
-        max_density = max(sum(values.values()) for values in counts.values())
-        cell_w = chart.width() / bins_x
-        cell_h = chart.height() / bins_y
+        legends = [point.legend for point in self._points]
+        nearest: list[int] = []
+        chunk = 2048
+        for start in range(0, query.shape[0], chunk):
+            block = query[start:start + chunk]
+            distances = np.sum((block[:, np.newaxis, :] - samples[np.newaxis, :, :]) ** 2, axis=2)
+            nearest.extend(np.argmin(distances, axis=1).astype(int).tolist())
+        print(f"Adding to plot: nearest-neighbor cells={len(nearest)}", flush=True)
         painter.save()
+        painter.setClipRect(chart)
         painter.setPen(Qt.PenStyle.NoPen)
-        for (ix, iy), values in counts.items():
-            legend = max(values.items(), key=lambda item: item[1])[0]
+        for index, sample_index in enumerate(nearest):
+            legend = legends[sample_index]
             color = QColor(color_map.get(legend, QColor("#94a3b8")))
-            alpha = int(20 + 80 * (sum(values.values()) / max(max_density, 1)))
-            color.setAlpha(alpha)
-            left = int(chart.left() + ix * cell_w)
-            top = int(chart.bottom() - (iy + 1) * cell_h)
+            color.setAlpha(82)
+            left = int(pixel_grid[index, 0] - step / 2.0)
+            top = int(pixel_grid[index, 1] - step / 2.0)
             painter.setBrush(color)
-            painter.drawRect(QRectF(left, top, cell_w + 1, cell_h + 1))
+            painter.drawRect(QRectF(left, top, step + 1, step + 1))
         painter.restore()
+        print("Color region draw complete", flush=True)
 
     def _x_ticks(self) -> list[float]:
         if self._x_col and self._x_col.is_discrete:
@@ -1225,6 +1253,8 @@ class ScatterPlotScreen(QWidget, WorkflowNodeScreenSupport):
                 if column.name in self._dataset.dataframe.columns:
                     target_name = column.name
                     break
+            if not target_name:
+                target_name = self._default_region_column_name()
         current_x = self._x_combo.currentText()
         current_y = self._y_combo.currentText()
         current_color = self._color_combo.currentText()
@@ -1702,12 +1732,14 @@ class ScatterPlotScreen(QWidget, WorkflowNodeScreenSupport):
         enabled = False
         if dataset is not None:
             color_name = self._current_color_name()
+            region_name = self._default_region_column_name()
             color_col = prepared_column(dataset, color_name) if color_name is not None else None
             x_col = prepared_column(dataset, self._x_combo.currentText())
             y_col = prepared_column(dataset, self._y_combo.currentText())
             enabled = bool(
                 color_col
                 and color_col.is_discrete
+                and color_name == region_name
                 and x_col
                 and y_col
                 and not x_col.is_discrete
@@ -1716,6 +1748,17 @@ class ScatterPlotScreen(QWidget, WorkflowNodeScreenSupport):
         self._class_density_cb.setEnabled(enabled)
         if not enabled:
             self._class_density_cb.setChecked(False)
+
+    def _default_region_column_name(self) -> str:
+        dataset = self._dataset
+        if dataset is None:
+            return ""
+        lower_to_name = {name.lower(): name for name in dataset.dataframe.columns}
+        for candidate in ("cluster", "class"):
+            name = lower_to_name.get(candidate)
+            if name:
+                return name
+        return ""
 
     def _can_draw_regression_line(self) -> bool:
         dataset = self._dataset

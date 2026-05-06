@@ -24,6 +24,7 @@ class SklearnModelArtifact:
     is_classifier: bool
     class_values: tuple[str, ...] | None
     target_encoder: dict[str, int] | None
+    numeric_means: dict[str, float] = field(default_factory=dict)
     params: dict = field(default_factory=dict)
     training_dataset: DatasetHandle | None = None
 
@@ -45,3 +46,15 @@ class SklearnModelArtifact:
         if self.trained_model is None:
             raise RuntimeError("Model has not been trained.")
         return self.trained_model.predict(X)
+
+    def predict_from_dataset(self, dataset: DatasetHandle) -> np.ndarray:
+        from portakal_app.data.services.sklearn_learner_service import SklearnLearnerService
+
+        X = SklearnLearnerService().encode_X(
+            dataset,
+            self.feature_names,
+            self.categorical_encoders,
+            self.numeric_cols,
+            self.numeric_means,
+        )
+        return self.predict(X)

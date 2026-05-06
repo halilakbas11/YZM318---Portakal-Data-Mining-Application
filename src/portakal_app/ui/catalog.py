@@ -17,12 +17,23 @@ from portakal_app.ui.screens.save_data_screen import SaveDataScreen
 
 from portakal_app.ui.screens.aggregate_columns_screen import AggregateColumnsScreen
 from portakal_app.ui.screens.apply_domain_screen import ApplyDomainScreen
+from portakal_app.ui.screens.ca_screen import CAScreen
 from portakal_app.ui.screens.continuize_screen import ContinuizeScreen
+from portakal_app.ui.screens.correlations_screen import CorrelationsScreen
 from portakal_app.ui.screens.data_sampler_screen import DataSamplerScreen
+from portakal_app.ui.screens.dbscan_screen import DBSCANScreen
 from portakal_app.ui.screens.discretize_screen import DiscretizeScreen
+from portakal_app.ui.screens.distance_file_screen import DistanceFileScreen
+from portakal_app.ui.screens.distance_map_screen import DistanceMapScreen
+from portakal_app.ui.screens.distance_matrix_screen import DistanceMatrixScreen
+from portakal_app.ui.screens.distance_transformation_screen import DistanceTransformationScreen
+from portakal_app.ui.screens.distances_screen import DistancesScreen
 from portakal_app.ui.screens.melt_screen import MeltScreen
+from portakal_app.ui.screens.mds_screen import MDSScreen
+from portakal_app.ui.screens.outliers_screen import OutliersScreen
 from portakal_app.ui.screens.purge_domain_screen import PurgeDomainScreen
 from portakal_app.ui.screens.randomize_screen import RandomizeScreen
+from portakal_app.ui.screens.save_distance_matrix_screen import SaveDistanceMatrixScreen
 from portakal_app.ui.screens.select_by_index_screen import SelectByIndexScreen
 from portakal_app.ui.screens.split_screen import SplitScreen
 from portakal_app.ui.screens.transpose_screen import TransposeScreen
@@ -84,6 +95,9 @@ from portakal_app.ui.screens.save_model_screen import SaveModelScreen
 from portakal_app.ui.screens.load_model_screen import LoadModelScreen
 from portakal_app.ui.screens.confusion_matrix_screen import ConfusionMatrixScreen
 from portakal_app.ui.screens.test_and_score_screen import TestAndScoreScreen
+from portakal_app.widgets.unsupervised.ow_hierarchical_clustering import OWHierarchicalClustering
+from portakal_app.widgets.unsupervised.ow_kmeans import OWKMeans
+from portakal_app.widgets.unsupervised.ow_pca import OWPCA
 
 
 def _placeholder_factory(title: str, description: str):
@@ -949,7 +963,7 @@ def build_widgets() -> list[WidgetDefinition]:
             _outputs("Model"),
             input_channels=("Data", "Model", "Aggregate"),
             multi_input_channels=("Model",),
-            semi_circular_inputs=True,
+            #semi_circular_inputs=True,
         ),
         WidgetDefinition(
             "save-model",
@@ -1001,11 +1015,175 @@ def build_widgets() -> list[WidgetDefinition]:
             "pca",
             "unsupervised",
             i18n.t("PCA"),
-            False,
-            _placeholder_factory("PCA", "Unsupervised widgets will be integrated by a later group."),
+            True,
+            OWPCA,
             i18n.t("Reduce dimensionality."),
             "pca",
             _inputs("Data"),
             _outputs("Data"),
+            output_channels=("Data",),
+            input_channels=("Data",),
+        ),
+        WidgetDefinition(
+            "hierarchical-clustering",
+            "unsupervised",
+            i18n.t("Hierarchical Clustering"),
+            True,
+            OWHierarchicalClustering,
+            i18n.t("Build an agglomerative dendrogram from a distance matrix."),
+            "HierarchicalClustering",
+            _inputs("Distances", "Data Subset"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Other Data"),
+        ),
+        WidgetDefinition(
+            "kmeans",
+            "unsupervised",
+            i18n.t("k-Means"),
+            True,
+            OWKMeans,
+            i18n.t("Cluster numeric data with centroid-based Voronoi partitions."),
+            "scatter",
+            _inputs("Data"),
+            _outputs("Data"),
+            output_channels=("Data",),
+            input_channels=("Data",),
+        ),
+        WidgetDefinition(
+            "dbscan",
+            "unsupervised",
+            i18n.t("DBSCAN"),
+            True,
+            DBSCANScreen,
+            i18n.t("Group data with density-based clustering and inspect k-distance behaviour."),
+            "dbscan",
+            _inputs("Data"),
+            _outputs("Data"),
+        ),
+        WidgetDefinition(
+            "unsupervised-knn",
+            "unsupervised",
+            i18n.t("kNN"),
+            True,
+            KNNScreen,
+            i18n.t("k-nearest neighbours model with the existing stable learner screen."),
+            "KNN",
+            _inputs("Data"),
+            _outputs("Model"),
+            output_channels=("Model",),
+            input_channels=("Data",),
+        ),
+        WidgetDefinition(
+            "distances",
+            "unsupervised",
+            i18n.t("Distances"),
+            True,
+            DistancesScreen,
+            i18n.t("Compute a distance matrix from the current data."),
+            "DistancesIcon",
+            _inputs("Data"),
+            _outputs("Distances"),
+        ),
+        WidgetDefinition(
+            "distance-file",
+            "unsupervised",
+            i18n.t("Distance File"),
+            True,
+            DistanceFileScreen,
+            i18n.t("Load a distance matrix from disk."),
+            "distancefile",
+            (),
+            _outputs("Distances"),
+        ),
+        WidgetDefinition(
+            "distance-matrix",
+            "unsupervised",
+            i18n.t("Distance Matrix"),
+            True,
+            DistanceMatrixScreen,
+            i18n.t("Inspect and forward a distance matrix."),
+            "DistanceMatrix",
+            _inputs("Distances"),
+            _outputs("Distances"),
+        ),
+        WidgetDefinition(
+            "distance-transformation",
+            "unsupervised",
+            i18n.t("Distance Transformation"),
+            True,
+            DistanceTransformationScreen,
+            i18n.t("Normalize or invert a distance matrix."),
+            "distancetransformation",
+            _inputs("Distances"),
+            _outputs("Distances"),
+        ),
+        WidgetDefinition(
+            "save-distance-matrix",
+            "unsupervised",
+            i18n.t("Save Distance Matrix"),
+            True,
+            SaveDistanceMatrixScreen,
+            i18n.t("Save the incoming distance matrix to disk."),
+            "SaveDistanceMatrix",
+            _inputs("Distances"),
+            (),
+        ),
+        WidgetDefinition(
+            "correlations",
+            "unsupervised",
+            i18n.t("Correlations"),
+            True,
+            CorrelationsScreen,
+            i18n.t("Review Pearson or Spearman correlations between numeric features."),
+            "Correlations",
+            _inputs("Data"),
+            _outputs("Data"),
+        ),
+        WidgetDefinition(
+            "distance-map",
+            "unsupervised",
+            i18n.t("Distance Map"),
+            True,
+            DistanceMapScreen,
+            i18n.t("Visualize a distance matrix as a heat map."),
+            "DistanceMap",
+            _inputs("Distances"),
+            (),
+        ),
+        WidgetDefinition(
+            "correspondence-analysis",
+            "unsupervised",
+            i18n.t("Correspondence Analysis"),
+            True,
+            CAScreen,
+            i18n.t("Project categorical values into correspondence-analysis coordinates."),
+            "ca",
+            _inputs("Data"),
+            _outputs("Data"),
+        ),
+        WidgetDefinition(
+            "mds",
+            "unsupervised",
+            i18n.t("MDS"),
+            True,
+            MDSScreen,
+            i18n.t("Project instances into two dimensions using multidimensional scaling."),
+            "mds",
+            _inputs("Data", "Data Subset", "Distances"),
+            _outputs("Data"),
+            output_channels=("Selected Data", "Data"),
+            input_channels=("Data", "Data Subset", "Distances"),
+        ),
+        WidgetDefinition(
+            "outliers",
+            "unsupervised",
+            i18n.t("Outliers"),
+            True,
+            OutliersScreen,
+            i18n.t("Detect inliers and outliers in numeric data."),
+            "outliers",
+            _inputs("Data"),
+            _outputs("Data"),
+            output_channels=("Outliers", "Inliers", "Data"),
         ),
     ]
