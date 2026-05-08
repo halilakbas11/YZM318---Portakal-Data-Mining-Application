@@ -5,6 +5,8 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
     QGroupBox,
+    QLabel,
+    QLineEdit,
     QSpinBox,
     QVBoxLayout,
 )
@@ -13,10 +15,10 @@ from portakal_app.data.services.sklearn_learner_service import SklearnLearnerSer
 from portakal_app.ui.screens.model_base import ModelScreenBase
 
 
-_METRICS = ["euclidean", "manhattan", "chebyshev"]
-_METRIC_LABELS = ["Euclidean", "Manhattan", "Chebyshev"]
+_METRICS = ["euclidean", "manhattan", "chebyshev", "mahalanobis"]
+_METRIC_LABELS = ["Euclidean", "Manhattan", "Maximal", "Mahalanobis"]
 _WEIGHTS = ["uniform", "distance"]
-_WEIGHT_LABELS = ["Uniform", "By Distances"]
+_WEIGHT_LABELS = ["Uniform", "Distance"]
 
 
 class KNNScreen(ModelScreenBase):
@@ -26,12 +28,18 @@ class KNNScreen(ModelScreenBase):
 
     def __init__(self, parent=None) -> None:
         self._svc = SklearnLearnerService()
+        self._learner_name = "kNN"
         self._n_neighbors = 5
         self._metric_index = 0
         self._weight_index = 0
         super().__init__(parent)
 
     def _add_main_layout(self, layout: QVBoxLayout) -> None:
+        self._name_edit = QLineEdit("kNN")
+        self._name_edit.textChanged.connect(self._settings_changed)
+        layout.addWidget(QLabel("Name"))
+        layout.addWidget(self._name_edit)
+
         box = QGroupBox("Neighbours")
         form = QFormLayout(box)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
@@ -51,9 +59,17 @@ class KNNScreen(ModelScreenBase):
         self._weight_combo = QComboBox()
         self._weight_combo.addItems(_WEIGHT_LABELS)
         self._weight_combo.currentIndexChanged.connect(self._settings_changed)
-        form.addRow("Weight:", self._weight_combo)
+        form.addRow("Weights:", self._weight_combo)
 
         layout.addWidget(box)
+
+        note = QLabel(
+            "Default preprocessing: remove rows with unknown target, one-hot encode categorical "
+            "variables, remove empty columns, impute missing values, then normalize."
+        )
+        note.setWordWrap(True)
+        note.setProperty("muted", True)
+        layout.addWidget(note)
 
     def _train(self):
         from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
@@ -67,18 +83,26 @@ class KNNScreen(ModelScreenBase):
         n = self._n_spin.value()
         metric = _METRICS[self._metric_combo.currentIndex()]
         weight = _WEIGHTS[self._weight_combo.currentIndex()]
+        display_name = self._name_edit.text().strip() or "kNN"
 
         kwargs = {"n_neighbors": n, "weights": weight}
-        if metric != "mahalanobis":
+        if metric == "mahalanobis":
+            X, _feature_names, _categorical_encoders, _numeric_cols, _numeric_means = self._svc.prepare_features(ds)
+            covariance = np.cov(X, rowvar=False)
+            covariance = np.atleast_2d(covariance)
+            kwargs["metric"] = "mahalanobis"
+            kwargs["metric_params"] = {"VI": np.linalg.pinv(covariance)}
+        else:
             kwargs["metric"] = metric
 
         estimator = KNeighborsClassifier(**kwargs) if is_clf else KNeighborsRegressor(**kwargs)
-        params = {"n_neighbors": n, "metric": metric, "weight": weight}
-        return self._svc.fit(estimator, ds, "kNN", "knn", params)
+        params = {"n_neighbors": n, "metric": metric, "weights": weight}
+        return self._svc.fit(estimator, ds, display_name, "knn", params)
 
     def serialize_node_state(self) -> dict:
         return {
             **super().serialize_node_state(),
+            "learner_name": self._name_edit.text(),
             "n_neighbors": self._n_spin.value(),
             "metric_index": self._metric_combo.currentIndex(),
             "weight_index": self._weight_combo.currentIndex(),
@@ -86,6 +110,7 @@ class KNNScreen(ModelScreenBase):
 
     def restore_node_state(self, payload: dict) -> None:
         super().restore_node_state(payload)
+        self._name_edit.setText(str(payload.get("learner_name", "kNN")))
         self._n_spin.setValue(int(payload.get("n_neighbors", 5)))
         self._metric_combo.setCurrentIndex(int(payload.get("metric_index", 0)))
         self._weight_combo.setCurrentIndex(int(payload.get("weight_index", 0)))

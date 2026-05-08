@@ -609,4 +609,4 @@ class TestPythonScriptService:
         result = PythonScriptService().execute(
             numeric_dataset, code="out_data = 'not a dataframe'"
         )
-        assert "could not be converted to a DataFrame" in result.error
+        assert "must be a polars or orange DataFrame" in result.error

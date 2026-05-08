@@ -37,6 +37,44 @@ def _is_missing(v: Any) -> bool:
 class SklearnLearnerService:
     """Encode a DatasetHandle and fit any sklearn estimator."""
 
+    def prepare_features(
+        self,
+        dataset: DatasetHandle,
+    ) -> tuple[np.ndarray, tuple[str, ...], dict[str, list], tuple[str, ...], dict[str, float]]:
+        df = dataset.dataframe
+        feature_columns = [c for c in dataset.domain.feature_columns if c.logical_type in {"numeric", "categorical", "boolean"}]
+        if not feature_columns:
+            raise ValueError("No supported feature columns (numeric/categorical).")
+
+        feature_names: list[str] = []
+        categorical_encoders: dict[str, list] = {}
+        numeric_cols: list[str] = []
+        numeric_means: dict[str, float] = {}
+
+        for col in feature_columns:
+            feature_names.append(col.name)
+            series = df.get_column(col.name)
+            if col.logical_type in {"categorical", "boolean"}:
+                cats = _safe_unique(series)
+                if not cats:
+                    cats = [False, True] if col.logical_type == "boolean" else ["(empty)"]
+                categorical_encoders[col.name] = cats
+            else:
+                raw = [float(v) if not _is_missing(v) else np.nan for v in series.to_list()]
+                arr = np.asarray(raw, dtype=float)
+                finite = arr[np.isfinite(arr)]
+                numeric_means[col.name] = float(np.mean(finite)) if finite.size else 0.0
+                numeric_cols.append(col.name)
+
+        X = self.encode_X(
+            dataset,
+            tuple(feature_names),
+            categorical_encoders,
+            tuple(numeric_cols),
+            numeric_means,
+        )
+        return X, tuple(feature_names), categorical_encoders, tuple(numeric_cols), numeric_means
+
     def encode_X(
         self,
         dataset: DatasetHandle,
@@ -85,37 +123,7 @@ class SklearnLearnerService:
         is_classifier = target_col.logical_type in {"categorical", "boolean"}
 
         df = dataset.dataframe
-        feature_columns = [c for c in dataset.domain.feature_columns if c.logical_type in {"numeric", "categorical", "boolean"}]
-        if not feature_columns:
-            raise ValueError("No supported feature columns (numeric/categorical).")
-
-        feature_names: list[str] = []
-        categorical_encoders: dict[str, list] = {}
-        numeric_cols: list[str] = []
-        numeric_means: dict[str, float] = {}
-
-        for col in feature_columns:
-            feature_names.append(col.name)
-            series = df.get_column(col.name)
-            if col.logical_type in {"categorical", "boolean"}:
-                cats = _safe_unique(series)
-                if not cats:
-                    cats = [False, True] if col.logical_type == "boolean" else ["(empty)"]
-                categorical_encoders[col.name] = cats
-            else:
-                raw = [float(v) if not _is_missing(v) else np.nan for v in series.to_list()]
-                arr = np.asarray(raw, dtype=float)
-                finite = arr[np.isfinite(arr)]
-                numeric_means[col.name] = float(np.mean(finite)) if finite.size else 0.0
-                numeric_cols.append(col.name)
-
-        X = self.encode_X(
-            dataset,
-            tuple(feature_names),
-            categorical_encoders,
-            tuple(numeric_cols),
-            numeric_means,
-        )
+        X, feature_names, categorical_encoders, numeric_cols, numeric_means = self.prepare_features(dataset)
 
         target_series = df.get_column(target_name)
         target_encoder: dict[str, int] | None = None
@@ -148,13 +156,14 @@ class SklearnLearnerService:
             model_type=model_type,
             sklearn_estimator=unfitted,
             trained_model=trained,
-            feature_names=tuple(feature_names),
+            feature_names=feature_names,
             categorical_encoders=categorical_encoders,
-            numeric_cols=tuple(numeric_cols),
+            numeric_cols=numeric_cols,
             target_name=target_name,
             is_classifier=is_classifier,
             class_values=class_values,
             target_encoder=target_encoder,
+            numeric_means=numeric_means,
             params=params or {},
             training_dataset=dataset,
         )

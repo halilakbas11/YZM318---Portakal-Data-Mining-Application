@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import uuid
 from dataclasses import dataclass
 
@@ -545,7 +544,6 @@ class WorkflowNodeItem(QGraphicsObject):
     PORT_EVENT_MARGIN = 16.0
     PORT_EDGE_OFFSET = 1.0
     DELETE_BUTTON_SIZE = 18.0
-    SEMI_R = 29.0  # radius of the half-moon input arc (= HEIGHT/2 so arc touches node corners)
 
     def __init__(self, widget_definition: WidgetDefinition, node_id: str | None = None, label: str | None = None) -> None:
         super().__init__()
@@ -565,10 +563,6 @@ class WorkflowNodeItem(QGraphicsObject):
         self.setZValue(1)
 
     def boundingRect(self) -> QRectF:
-        if self.widget_definition.semi_circular_inputs and self.widget_definition.input_ports:
-            left_ext = self.SEMI_R + self.PORT_HIT_RADIUS + self.PORT_EDGE_OFFSET
-            vert_ext = self.PORT_HIT_RADIUS + 4.0
-            return self._body_rect().adjusted(-left_ext, -vert_ext, self.PORT_EVENT_MARGIN, vert_ext)
         return self._body_rect().adjusted(-self.PORT_EVENT_MARGIN, 0.0, self.PORT_EVENT_MARGIN, 0.0)
 
     def shape(self) -> QPainterPath:
@@ -620,18 +614,6 @@ class WorkflowNodeItem(QGraphicsObject):
         raise KeyError(f"Unknown {direction} port {port_id} for {self.widget_definition.id}")
 
     def _port_center(self, direction: str, index: int, count: int) -> QPointF:
-        if direction == "input" and self.widget_definition.semi_circular_inputs and count > 0:
-            # Half-moon arc: ports arranged on the left semicircle.
-            # angle t goes from -π/2 (top) to +π/2 (bottom) passing through π (leftmost).
-            # Formula: x = -SEMI_R * cos(t),  y = HEIGHT/2 + SEMI_R * sin(t)
-            # At t=-π/2: (0, 0)  At t=0: (-SEMI_R, HEIGHT/2)  At t=π/2: (0, HEIGHT)
-            if count == 1:
-                t = 0.0
-            else:
-                t = -math.pi / 2 + (index / (count - 1)) * math.pi
-            x = -self.SEMI_R * math.cos(t) - self.PORT_EDGE_OFFSET
-            y = self.HEIGHT / 2 + self.SEMI_R * math.sin(t)
-            return QPointF(x, y)
         spacing = self.HEIGHT / (count + 1)
         y = spacing * (index + 1)
         x = -self.PORT_EDGE_OFFSET if direction == "input" else self.WIDTH + self.PORT_EDGE_OFFSET
@@ -676,21 +658,6 @@ class WorkflowNodeItem(QGraphicsObject):
         painter.setPen(QPen(QColor("#24313b")))
         text_rect = QRectF(icon_circle.right() + gap, 18, text_width + 4, 22)
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.display_label)
-
-        # Draw semi-circular arc guide for inputs when semi_circular_inputs is enabled
-        if self.widget_definition.semi_circular_inputs and self.widget_definition.input_ports:
-            arc_path = QPainterPath()
-            cx = 0.0
-            cy = self.HEIGHT / 2
-            r = self.SEMI_R
-            # Qt arcTo: 90° = top (12 o'clock), sweep +180° CCW (visually left side)
-            # → arc goes from top through left side to bottom
-            arc_rect = QRectF(cx - r, cy - r, r * 2, r * 2)
-            arc_path.arcMoveTo(arc_rect, 90)
-            arc_path.arcTo(arc_rect, 90, 180)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(QColor("#c8d8e8"), 1.0, Qt.PenStyle.DashLine))
-            painter.drawPath(arc_path)
 
         for direction, ports, color in (
             ("input", self.widget_definition.input_ports, QColor("#4d95da")),
