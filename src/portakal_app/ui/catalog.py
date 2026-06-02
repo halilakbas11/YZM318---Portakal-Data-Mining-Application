@@ -98,6 +98,10 @@ from portakal_app.ui.screens.test_and_score_screen import TestAndScoreScreen
 from portakal_app.widgets.unsupervised.ow_hierarchical_clustering import OWHierarchicalClustering
 from portakal_app.widgets.unsupervised.ow_kmeans import OWKMeans
 from portakal_app.widgets.unsupervised.ow_pca import OWPCA
+from portakal_app.ui.screens.tsne_screen import TSNEScreen
+from portakal_app.ui.screens.manifold_learning_screen import ManifoldLearningScreen
+from portakal_app.ui.screens.som_screen import SOMScreen
+from portakal_app.ui.screens.louvain_clustering_screen import LouvainClusteringScreen
 
 
 def _placeholder_factory(title: str, description: str):
@@ -1185,5 +1189,49 @@ def build_widgets() -> list[WidgetDefinition]:
             _inputs("Data"),
             _outputs("Data"),
             output_channels=("Outliers", "Inliers", "Data"),
+        ),
+        WidgetDefinition(
+            "tsne",
+            "unsupervised",
+            i18n.t("t-SNE"),
+            True,
+            TSNEScreen,
+            i18n.t("Non-linear 2D/3D embedding via t-SNE."),
+            "tsne",
+            _inputs("Data"),
+            _outputs("Data"),
+        ),
+        WidgetDefinition(
+            "manifold-learning",
+            "unsupervised",
+            i18n.t("Manifold Learning"),
+            True,
+            ManifoldLearningScreen,
+            i18n.t("Non-linear dimensionality reduction (Isomap, LLE, MDS…)."),
+            "manifold",
+            _inputs("Data"),
+            _outputs("Data"),
+        ),
+        WidgetDefinition(
+            "som",
+            "unsupervised",
+            i18n.t("SOM"),
+            True,
+            SOMScreen,
+            i18n.t("Self-Organizing Map (Kohonen Map)."),
+            "som",
+            _inputs("Data"),
+            _outputs("Data"),
+        ),
+        WidgetDefinition(
+            "louvain-clustering",
+            "unsupervised",
+            i18n.t("Louvain Clustering"),
+            True,
+            LouvainClusteringScreen,
+            i18n.t("Graph-based community detection via Louvain algorithm."),
+            "louvain",
+            _inputs("Data"),
+            _outputs("Data"),
         ),
     ]
