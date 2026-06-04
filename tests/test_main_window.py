@@ -1177,6 +1177,7 @@ def test_language_switch_updates_shell_catalog_and_node_labels(app):
             "Model",
             "Değerlendir",
             "Gözetimsiz",
+            "Metin Madenciliği",
         ]
         assert node.display_label == "Sütun İstatistikleri"
 
