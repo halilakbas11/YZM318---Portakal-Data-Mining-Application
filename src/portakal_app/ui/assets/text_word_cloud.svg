@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <path d="M15 35h22c4 0 7-3 7-7s-3-7-7-7h-1c-1-6-6-10-12-10-5 0-10 3-12 8-5 1-8 4-8 9 0 4 4 7 11 7z" fill="#fff8ee" stroke="#333333" stroke-width="2" stroke-linejoin="round"/>
+  <text x="13" y="25" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#f28c28">text</text>
+  <text x="20" y="33" font-family="Arial, sans-serif" font-size="8" font-weight="700" fill="#5f4d39">word</text>
+  <text x="25" y="18" font-family="Arial, sans-serif" font-size="7" font-weight="700" fill="#8a7761">data</text>
+</svg>
